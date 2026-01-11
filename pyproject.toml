@@ -28,7 +28,7 @@ whisper = [
 ]
 
 [project.scripts]
-learnlock = "learnlock.cli:app"
+learnlock = "learnlock.cli:main"
 
 [build-system]
 requires = ["hatchling"]

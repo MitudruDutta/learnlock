@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 
 from . import config
 
@@ -47,29 +48,61 @@ def _get_gemini_response(prompt: str, system: str = None) -> str:
     return response.text
 
 
-def _parse_json_response(response: str) -> dict | list:
-    """Parse JSON from LLM response, handling markdown code blocks."""
+def _extract_json_from_response(response: str) -> str:
+    """Extract JSON from LLM response, handling various formats."""
     response = response.strip()
     
-    # Handle markdown code blocks
-    if response.startswith("```"):
-        lines = response.split("\n")
-        # Find start and end of code block
-        start_idx = 0
-        end_idx = len(lines)
-        for i, line in enumerate(lines):
-            if line.startswith("```") and i == 0:
-                start_idx = 1
-            elif line.startswith("```") and i > 0:
-                end_idx = i
-                break
-        response = "\n".join(lines[start_idx:end_idx])
-        
-        # Remove language identifier if present
-        if response.startswith("json"):
-            response = response[4:].strip()
+    # Try to find JSON in markdown code blocks
+    code_block_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', response)
+    if code_block_match:
+        return code_block_match.group(1).strip()
     
-    return json.loads(response)
+    # Try to find JSON array or object directly
+    array_match = re.search(r'(\[[\s\S]*\])', response)
+    if array_match:
+        return array_match.group(1)
+    
+    obj_match = re.search(r'(\{[\s\S]*\})', response)
+    if obj_match:
+        return obj_match.group(1)
+    
+    return response
+
+
+def _parse_json_response(response: str) -> dict | list:
+    """Parse JSON from LLM response with robust error handling."""
+    json_str = _extract_json_from_response(response)
+    
+    # Try direct parse
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+    
+    # Try fixing common issues - remove trailing commas
+    json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+    
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+    
+    # Last resort: try to extract individual objects
+    try:
+        objects = re.findall(r'\{[^{}]*\}', json_str)
+        if objects:
+            parsed = []
+            for obj in objects:
+                try:
+                    parsed.append(json.loads(obj))
+                except:
+                    continue
+            if parsed:
+                return parsed
+    except:
+        pass
+    
+    raise ValueError("Could not parse JSON from response")
 
 
 def extract_concepts(content: str, title: str) -> list[dict]:
@@ -77,46 +110,56 @@ def extract_concepts(content: str, title: str) -> list[dict]:
     
     Returns list of {"name": str, "source_quote": str}
     """
-    system = """You are a learning assistant that extracts key concepts from educational content.
-For each concept, provide the exact quote from the source that explains it."""
+    system = """You are a learning assistant. Extract key concepts and return valid JSON only.
+Never include special characters or newlines inside JSON strings."""
 
-    # Truncate content to configured max
+    # Truncate and clean content
     truncated_content = content[:config.CONTENT_MAX_CHARS]
-    
+    truncated_content = truncated_content.replace('"', "'").replace('\n', ' ').replace('\r', ' ')
+    truncated_content = re.sub(r'\s+', ' ', truncated_content)
+
     prompt = f"""Extract {config.MIN_CONCEPTS}-{config.MAX_CONCEPTS} key concepts from this content.
 
 TITLE: {title}
 
 CONTENT:
-{truncated_content}
+{truncated_content[:config.CONTENT_TRUNCATE_FOR_PROMPT]}
 
-Return ONLY valid JSON array:
+Return ONLY a valid JSON array with this exact format:
 [
-  {{"name": "Concept Name", "source_quote": "Exact quote from content explaining this concept (1-3 sentences)"}},
-  ...
+  {{"name": "Short Concept Name", "source_quote": "Brief quote from content"}},
+  {{"name": "Another Concept", "source_quote": "Another brief quote"}}
 ]
 
-Rules:
-- source_quote MUST be exact text from the content, not paraphrased
-- Focus on the most important concepts
-- Each quote should be self-contained and understandable"""
+IMPORTANT: 
+- Keep quotes SHORT (under {config.MAX_QUOTE_LENGTH} characters)
+- No special characters or newlines in strings
+- Return ONLY the JSON array, nothing else"""
 
-    response = _get_groq_response(prompt, system)
-    concepts = _parse_json_response(response)
+    last_error = None
+    for attempt in range(config.EXTRACTION_MAX_RETRIES + 1):
+        try:
+            response = _get_groq_response(prompt, system)
+            concepts = _parse_json_response(response)
+            
+            # Validate structure
+            valid = []
+            for c in concepts:
+                if isinstance(c, dict) and "name" in c and "source_quote" in c:
+                    name = str(c["name"]).strip()[:config.MAX_CONCEPT_NAME_LENGTH]
+                    quote = str(c["source_quote"]).strip()[:config.MAX_QUOTE_LENGTH]
+                    if name and quote:
+                        valid.append({"name": name, "source_quote": quote})
+            
+            if valid:
+                return valid
+            
+            last_error = "No valid concepts in response"
+        except Exception as e:
+            last_error = str(e)
+            continue
     
-    # Validate structure
-    valid = []
-    for c in concepts:
-        if isinstance(c, dict) and "name" in c and "source_quote" in c:
-            name = str(c["name"]).strip()
-            quote = str(c["source_quote"]).strip()
-            if name and quote:
-                valid.append({"name": name, "source_quote": quote})
-    
-    if not valid:
-        raise RuntimeError("No valid concepts extracted")
-    
-    return valid
+    raise RuntimeError(f"Concept extraction failed after {config.EXTRACTION_MAX_RETRIES + 1} attempts: {last_error}")
 
 
 def evaluate_explanation(concept_name: str, source_quote: str, user_explanation: str) -> dict:
@@ -125,7 +168,12 @@ def evaluate_explanation(concept_name: str, source_quote: str, user_explanation:
     Tries Gemini first, falls back to Groq if rate limited.
     Returns {"score": 1-5, "covered": [...], "missed": [...], "feedback": str}
     """
-    prompt = f"""You are evaluating a student's explanation of a concept.
+    # Clean and truncate inputs
+    concept_name = concept_name[:config.MAX_CONCEPT_NAME_LENGTH]
+    source_quote = source_quote[:config.MAX_QUOTE_LENGTH]
+    user_explanation = user_explanation[:config.MAX_EXPLANATION_LENGTH]
+    
+    prompt = f"""Evaluate this student explanation.
 
 CONCEPT: {concept_name}
 
@@ -135,24 +183,10 @@ SOURCE (ground truth):
 STUDENT'S EXPLANATION:
 "{user_explanation}"
 
-Compare the student's explanation to the source.
-
 Return ONLY valid JSON:
-{{
-  "score": <{config.SCORE_MIN}-{config.SCORE_MAX}>,
-  "covered": ["key point 1 they got right", "key point 2 they got right"],
-  "missed": ["key point 1 they missed", "key point 2 they missed"],
-  "feedback": "One sentence summary of their understanding"
-}}
+{{"score": <{config.SCORE_MIN}-{config.SCORE_MAX}>, "covered": ["point1", "point2"], "missed": ["point1"], "feedback": "One sentence"}}
 
-Scoring guide:
-{config.SCORE_MIN} = Completely wrong or empty
-2 = Missed most key points
-3 = Got the gist, missed important details
-4 = Good understanding, minor gaps
-{config.SCORE_MAX} = Fully captured the concept
-
-Be strict but fair. Vague language instead of precise terms counts as partial miss."""
+Scoring: {config.SCORE_MIN}=wrong, {config.SCORE_MAX}=excellent"""
 
     # Try Gemini first, fallback to Groq
     response = None
@@ -177,15 +211,23 @@ Be strict but fair. Vague language instead of precise terms counts as partial mi
     try:
         result = _parse_json_response(response)
         
-        # Validate and normalize score to configured range
+        # Validate and normalize score
         score = int(result.get("score", config.DEFAULT_FALLBACK_SCORE))
         score = max(config.SCORE_MIN, min(config.SCORE_MAX, score))
         
+        covered = result.get("covered", [])
+        if not isinstance(covered, list):
+            covered = [str(covered)] if covered else []
+        
+        missed = result.get("missed", [])
+        if not isinstance(missed, list):
+            missed = [str(missed)] if missed else []
+        
         return {
             "score": score,
-            "covered": result.get("covered", []),
-            "missed": result.get("missed", []),
-            "feedback": str(result.get("feedback", ""))
+            "covered": [str(c)[:config.MAX_COVERED_MISSED_LENGTH] for c in covered[:config.MAX_COVERED_MISSED_ITEMS]],
+            "missed": [str(m)[:config.MAX_COVERED_MISSED_LENGTH] for m in missed[:config.MAX_COVERED_MISSED_ITEMS]],
+            "feedback": str(result.get("feedback", ""))[:config.MAX_FEEDBACK_LENGTH]
         }
         
     except Exception as e:
