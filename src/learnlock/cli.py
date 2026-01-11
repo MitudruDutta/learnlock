@@ -4,6 +4,7 @@ import sys
 import os
 import json
 import re
+import select
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Callable
@@ -24,12 +25,29 @@ from . import scheduler
 from . import llm
 from .tools import extract_youtube, extract_article
 
+
+def _flush_stdin():
+    """Flush any buffered stdin input."""
+    try:
+        import termios
+        termios.tcflush(sys.stdin, termios.TCIFLUSH)
+    except (ImportError, termios.error):
+        # Windows or no terminal - try select-based flush
+        try:
+            while select.select([sys.stdin], [], [], 0)[0]:
+                sys.stdin.readline()
+        except:
+            pass
+
 # ============ CONSTANTS ============
 VERSION = "0.1.0"
 BANNER = """[bold cyan]
- ╦  ╔═╗╔═╗╦═╗╔╗╔╦  ╔═╗╔═╗╦╔═
- ║  ║╣ ╠═╣╠╦╝║║║║  ║ ║║  ╠╩╗
- ╩═╝╚═╝╩ ╩╩╚═╝╚╝╩═╝╚═╝╚═╝╩ ╩[/bold cyan]
+██╗     ███████╗ █████╗ ██████╗ ███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗
+██║     ██╔════╝██╔══██╗██╔══██╗████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝
+██║     █████╗  ███████║██████╔╝██╔██╗ ██║██║     ██║   ██║██║     █████╔╝ 
+██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ 
+███████╗███████╗██║  ██║██║  ██║██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗
+╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝[/bold cyan]
 [dim]Stop consuming. Start retaining.[/dim]
 """
 
@@ -169,11 +187,16 @@ def cmd_add(url: str) -> bool:
     for c in concepts:
         console.print(f"  [dim]•[/dim] {c['name']}")
     
+    # Prompt to study immediately
+    console.print()
+    console.print(f"[cyan]{len(concepts)} concepts ready to study![/cyan]")
+    console.print("[dim]Run /study to start, or press Enter[/dim]")
+    
     return True
 
 
 def cmd_study() -> bool:
-    """Interactive study session."""
+    """Interactive study session - one concept at a time, conversational."""
     due = scheduler.get_next_due()
     
     if not due:
@@ -181,7 +204,6 @@ def cmd_study() -> bool:
         if summary["total_concepts"] == 0:
             console.print("[dim]No concepts yet. Add some content first:[/dim]")
             console.print("  [cyan]/add[/cyan] <youtube-url>")
-            console.print("  [cyan]/add[/cyan] <article-url>")
         else:
             console.print("[green]✓[/green] All caught up! Nothing due for review.")
         return True
@@ -189,72 +211,71 @@ def cmd_study() -> bool:
     total_due = len(scheduler.get_all_due())
     studied = 0
     
+    console.print()
+    console.print(f"[bold cyan]📚 Study Session[/bold cyan] — {total_due} concepts to review")
+    console.print("[dim]Type 'skip' to skip, 'q' to quit anytime[/dim]")
+    
     while due:
         studied += 1
-        console.clear()
-        _print_banner()
         
-        # Progress indicator
-        console.print(f"[dim]Concept {studied} of {total_due}[/dim]")
+        # Concept header
         console.print()
-        
-        # Concept panel
-        console.print(Panel(
-            f"[bold white]{due['name']}[/bold white]",
-            subtitle=f"[dim]{due['source_title']}[/dim]",
-            border_style="cyan",
-            padding=(0, 2),
-        ))
+        console.print(f"[bold]━━━ {studied}/{total_due}: {due['name']} ━━━[/bold]")
+        console.print(f"[dim]from {due['source_title']}[/dim]")
         
         # Source quote
         console.print()
-        console.print("[bold]📖 Source says:[/bold]")
-        console.print(Panel(
-            due["source_quote"],
-            border_style="dim",
-            padding=(1, 2),
-        ))
+        console.print("[cyan]Source says:[/cyan]")
+        console.print(f"  \"{due['source_quote']}\"")
         
-        # Prompt for explanation
+        # Get explanation (multi-line: end with empty line or double Enter)
         console.print()
-        console.print("[bold]✏️  Explain in your own words:[/bold]")
-        console.print("[dim]   (type 'skip' to skip, 'quit' to exit)[/dim]")
-        console.print()
+        console.print("[cyan]Explain this in your own words:[/cyan]")
+        console.print("[dim](Press Enter twice when done)[/dim]")
         
+        _flush_stdin()  # Clear any buffered input before reading
+        lines = []
         try:
-            explanation = Prompt.ask("[cyan]>[/cyan]", console=console)
+            while True:
+                line = console.input("[bold]> [/bold]" if not lines else "[bold]  [/bold]")
+                if not line and lines:  # Empty line after content = done
+                    break
+                if line:
+                    lines.append(line)
+                elif not lines:  # First line empty = prompt again
+                    console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
         except (EOFError, KeyboardInterrupt):
-            console.print()
+            console.print("\n[dim]Session ended.[/dim]")
             return True
         
-        explanation = explanation.strip()
+        _flush_stdin()  # Clear any remaining buffered input after reading
+        explanation = " ".join(lines).strip()
         
-        if explanation.lower() in ("quit", "q", "/quit"):
+        # Handle commands
+        if explanation.lower() in ("q", "quit", "/quit", "exit"):
+            console.print("[dim]Session ended.[/dim]")
             return True
         
         if explanation.lower() in ("skip", "s", "/skip"):
             storage.skip_concept(due["id"])
-            console.print("[yellow]⏭ Skipped[/yellow]")
+            console.print("[yellow]⏭ Skipped — won't appear again[/yellow]")
             due = scheduler.get_next_due()
             total_due = len(scheduler.get_all_due()) + studied
-            if due:
-                Prompt.ask("[dim]Press Enter to continue[/dim]", console=console)
             continue
         
         if not explanation:
-            console.print("[yellow]Empty response. Type something or 'skip'.[/yellow]")
-            Prompt.ask("[dim]Press Enter[/dim]", console=console)
+            console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
             continue
         
         # Evaluate
-        with _spinner("Evaluating your explanation..."):
+        with _spinner("Thinking..."):
             eval_result = llm.evaluate_explanation(
                 concept_name=due["name"],
                 source_quote=due["source_quote"],
                 user_explanation=explanation
             )
         
-        # Show results
+        # Show result inline
         console.print()
         _show_evaluation_result(eval_result)
         
@@ -270,69 +291,50 @@ def cmd_study() -> bool:
         
         # Update scheduler
         sched_result = scheduler.update_after_review(due["id"], eval_result["score"])
+        console.print(f"[dim]↳ Next review: {sched_result['next_review']}[/dim]")
         
-        console.print()
-        console.print(f"[dim]Next review: {sched_result['next_review']}[/dim]")
-        
-        # Next?
+        # Get next
         due = scheduler.get_next_due()
+        
         if due:
+            remaining = len(scheduler.get_all_due())
             console.print()
             try:
-                cont = Prompt.ask(
-                    f"[dim]{len(scheduler.get_all_due())} more due. Continue? (Enter/q)[/dim]",
-                    console=console,
-                    default=""
-                )
+                cont = console.input(f"[dim]({remaining} more) Press Enter to continue, 'q' to quit: [/dim]").strip()
                 if cont.lower() in ("q", "quit", "n", "no"):
+                    console.print("[dim]Session ended.[/dim]")
                     return True
             except (EOFError, KeyboardInterrupt):
+                console.print("\n[dim]Session ended.[/dim]")
                 return True
     
     console.print()
-    console.print("[green]✓[/green] Study session complete!")
+    console.print(f"[green]✓[/green] Done! Reviewed {studied} concepts.")
     return True
 
 
 def _show_evaluation_result(result: dict):
-    """Display evaluation result."""
+    """Display evaluation result - conversational style."""
     score = result["score"]
     
-    # Score display
+    # Score with emoji
     if score >= 4:
-        score_color = "green"
-        emoji = "🎯"
-        msg = "Excellent!"
+        console.print(f"[green]🎯 {score}/5 — Excellent![/green]")
     elif score >= 3:
-        score_color = "yellow"
-        emoji = "📝"
-        msg = "Good, but review the gaps"
+        console.print(f"[yellow]📝 {score}/5 — Good, but gaps[/yellow]")
     else:
-        score_color = "red"
-        emoji = "📚"
-        msg = "Needs more review"
-    
-    # Score panel
-    score_text = f"{emoji} [bold {score_color}]{score}/5[/bold {score_color}] {msg}"
-    console.print(Panel(score_text, border_style=score_color))
+        console.print(f"[red]📚 {score}/5 — Review needed[/red]")
     
     # Feedback
     if result["feedback"]:
-        console.print()
-        console.print(f"[italic]{result['feedback']}[/italic]")
+        console.print(f"[dim]{result['feedback']}[/dim]")
     
-    # Covered/Missed
+    # Covered/Missed inline
     if result["covered"]:
-        console.print()
-        console.print("[green]✓ You covered:[/green]")
-        for p in result["covered"]:
-            console.print(f"  • {p}")
+        console.print(f"[green]✓ Covered:[/green] {', '.join(result['covered'])}")
     
     if result["missed"]:
-        console.print()
-        console.print("[red]✗ You missed:[/red]")
-        for p in result["missed"]:
-            console.print(f"  • {p}")
+        console.print(f"[red]✗ Missed:[/red] {', '.join(result['missed'])}")
 
 
 def cmd_stats() -> bool:
@@ -437,21 +439,21 @@ def cmd_skip(name: str) -> bool:
     name = name.strip()
     if not name:
         console.print("[yellow]Usage: /skip <concept-name>[/yellow]")
-        return False
+        return True
     
     concepts = storage.get_all_concepts()
     matches = [c for c in concepts if name.lower() in c["name"].lower()]
     
     if not matches:
         console.print(f"[red]No concept matching '{name}'[/red]")
-        return False
+        return True
     
     if len(matches) > 1:
         console.print("[yellow]Multiple matches:[/yellow]")
         for m in matches:
             console.print(f"  • {m['name']}")
         console.print("[dim]Be more specific.[/dim]")
-        return False
+        return True
     
     storage.skip_concept(matches[0]["id"])
     console.print(f"[green]✓[/green] Skipped: {matches[0]['name']}")
@@ -494,13 +496,13 @@ def cmd_unskip(name: str) -> bool:
     
     if not matches:
         console.print(f"[red]No skipped concept matching '{name}'[/red]")
-        return False
+        return True
     
     if len(matches) > 1:
         console.print("[yellow]Multiple matches:[/yellow]")
         for m in matches:
             console.print(f"  • {m['name']}")
-        return False
+        return True
     
     storage.unskip_concept(matches[0]["id"])
     console.print(f"[green]✓[/green] Restored: {matches[0]['name']}")

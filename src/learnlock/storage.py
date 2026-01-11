@@ -125,9 +125,13 @@ def get_source(source_id: int) -> Optional[dict]:
 # ============ CONCEPTS ============
 
 def add_concept(source_id: int, name: str, source_quote: str) -> int:
-    """Add a concept with initial progress. Returns concept ID."""
+    """Add a concept with initial progress. Returns concept ID.
+    
+    New concepts are due immediately so user can study right after adding.
+    """
     now = _utcnow()
-    due = now + timedelta(days=config.SM2_INITIAL_INTERVAL)
+    # Due immediately - user should study right after adding
+    due = now
     
     with get_db() as conn:
         cursor = conn.execute(
@@ -141,6 +145,7 @@ def add_concept(source_id: int, name: str, source_quote: str) -> int:
             (concept_id, due.isoformat(), now.isoformat())
         )
         return concept_id
+
 
 
 def get_concept(concept_id: int) -> Optional[dict]:

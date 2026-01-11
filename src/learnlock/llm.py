@@ -168,25 +168,30 @@ def evaluate_explanation(concept_name: str, source_quote: str, user_explanation:
     Tries Gemini first, falls back to Groq if rate limited.
     Returns {"score": 1-5, "covered": [...], "missed": [...], "feedback": str}
     """
+    # Handle empty explanation
+    if not user_explanation or not user_explanation.strip():
+        return {
+            "score": config.SCORE_MIN,
+            "covered": [],
+            "missed": ["No explanation provided"],
+            "feedback": "You need to provide an explanation."
+        }
+    
     # Clean and truncate inputs
     concept_name = concept_name[:config.MAX_CONCEPT_NAME_LENGTH]
     source_quote = source_quote[:config.MAX_QUOTE_LENGTH]
-    user_explanation = user_explanation[:config.MAX_EXPLANATION_LENGTH]
+    user_explanation = user_explanation.strip()[:config.MAX_EXPLANATION_LENGTH]
     
-    prompt = f"""Evaluate this student explanation.
+    prompt = f"""Grade this explanation. Return JSON only.
 
-CONCEPT: {concept_name}
+Concept: {concept_name}
+Source: "{source_quote}"
+Student: "{user_explanation}"
 
-SOURCE (ground truth):
-"{source_quote}"
+Reply with ONLY this JSON format, no other text:
+{{"score":3,"covered":["point1"],"missed":["point2"],"feedback":"brief feedback"}}
 
-STUDENT'S EXPLANATION:
-"{user_explanation}"
-
-Return ONLY valid JSON:
-{{"score": <{config.SCORE_MIN}-{config.SCORE_MAX}>, "covered": ["point1", "point2"], "missed": ["point1"], "feedback": "One sentence"}}
-
-Scoring: {config.SCORE_MIN}=wrong, {config.SCORE_MAX}=excellent"""
+Score 1-5: 1=wrong, 3=partial, 5=perfect"""
 
     # Try Gemini first, fallback to Groq
     response = None
@@ -210,30 +215,37 @@ Scoring: {config.SCORE_MIN}=wrong, {config.SCORE_MAX}=excellent"""
     
     try:
         result = _parse_json_response(response)
-        
-        # Validate and normalize score
-        score = int(result.get("score", config.DEFAULT_FALLBACK_SCORE))
+    except Exception:
+        # Fallback: try to extract score from raw text
+        score_match = re.search(r'["\']?score["\']?\s*[:=]\s*(\d)', response)
+        score = int(score_match.group(1)) if score_match else config.DEFAULT_FALLBACK_SCORE
         score = max(config.SCORE_MIN, min(config.SCORE_MAX, score))
         
-        covered = result.get("covered", [])
-        if not isinstance(covered, list):
-            covered = [str(covered)] if covered else []
-        
-        missed = result.get("missed", [])
-        if not isinstance(missed, list):
-            missed = [str(missed)] if missed else []
+        # Extract any feedback text
+        feedback = re.sub(r'[{}\[\]"]', '', response)[:100].strip()
         
         return {
             "score": score,
-            "covered": [str(c)[:config.MAX_COVERED_MISSED_LENGTH] for c in covered[:config.MAX_COVERED_MISSED_ITEMS]],
-            "missed": [str(m)[:config.MAX_COVERED_MISSED_LENGTH] for m in missed[:config.MAX_COVERED_MISSED_ITEMS]],
-            "feedback": str(result.get("feedback", ""))[:config.MAX_FEEDBACK_LENGTH]
-        }
-        
-    except Exception as e:
-        return {
-            "score": config.DEFAULT_FALLBACK_SCORE,
             "covered": [],
             "missed": [],
-            "feedback": f"Parse error: {e}"
+            "feedback": feedback or "Explanation recorded."
         }
+    
+    # Validate and normalize score
+    score = int(result.get("score", config.DEFAULT_FALLBACK_SCORE))
+    score = max(config.SCORE_MIN, min(config.SCORE_MAX, score))
+    
+    covered = result.get("covered", [])
+    if not isinstance(covered, list):
+        covered = [str(covered)] if covered else []
+    
+    missed = result.get("missed", [])
+    if not isinstance(missed, list):
+        missed = [str(missed)] if missed else []
+    
+    return {
+        "score": score,
+        "covered": [str(c)[:config.MAX_COVERED_MISSED_LENGTH] for c in covered[:config.MAX_COVERED_MISSED_ITEMS]],
+        "missed": [str(m)[:config.MAX_COVERED_MISSED_LENGTH] for m in missed[:config.MAX_COVERED_MISSED_ITEMS]],
+        "feedback": str(result.get("feedback", ""))[:config.MAX_FEEDBACK_LENGTH]
+    }
