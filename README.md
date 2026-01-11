@@ -1,89 +1,20 @@
-# learn-lock
+# learnlock
 
 **Stop consuming. Start retaining.**
 
-learn-lock is a learning accountability system that forces active recall, grades your understanding, and haunts you with spaced repetition until you actually know the material.
+A CLI tool that extracts concepts from content, quizzes you with active recall challenges, grades your explanations using AI, and schedules reviews with spaced repetition.
 
 ---
 
-## The Problem
+## What It Actually Does
 
-You watch a 30-minute video. You think you understood it. A week later, you remember nothing.
+1. **Add content** — YouTube videos, articles, PDFs, GitHub repos
+2. **Extract concepts** — LLM identifies 8-12 key concepts with challenge questions
+3. **Quiz you** — Forces you to explain concepts in your own words
+4. **Grade explanations** — AI evaluates against source material
+5. **Schedule reviews** — SM-2 algorithm brings concepts back at optimal intervals
 
-- Passive consumption doesn't work
-- Flashcard apps are boring and you stop using them
-- There's no feedback loop telling you what you actually missed
-
-## The Solution
-
-learn-lock extracts concepts from any content (YouTube, articles, PDFs), generates challenges that force you to explain concepts in your own words, grades your explanations against the source material, and schedules spaced repetition reviews.
-
-**You either prove you understood, or learn-lock exposes that you didn't.**
-
----
-
-## How It Works
-
-```bash
-# Add content
-$ learnlock add "https://youtube.com/watch?v=attention-explained"
-✓ Extracted 8 concepts from "Attention Is All You Need Explained"
-✓ Generated 8 challenges, 3 micro-projects
-✓ Scheduled first review for tomorrow
-
-# Study (when concepts are due)
-$ learnlock study
-
-📚 Concept: Attention Mechanism
-
-Challenge: Explain why attention uses Q, K, V matrices instead of a single matrix.
-
-Your explanation: > The Q, K, V matrices allow the model to learn different 
-                    representations for querying, matching, and retrieving...
-
-Score: 72/100
-
-✓ Covered: Q/K/V separation, dot product similarity
-✗ Missed: Scaling factor (sqrt(d_k)) — Review at timestamp 14:32
-✗ Missed: Why scaling prevents gradient issues
-
-Next review: 2 days
-
-# Track progress
-$ learnlock stats
-Concepts learned: 47
-Retention rate: 78%
-Streak: 5 days
-Weakest area: "Mathematical foundations" (62% retention)
-```
-
----
-
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-source ingestion** | YouTube, articles, PDFs, markdown notes, GitHub repos |
-| **Concept extraction** | Identifies key concepts with difficulty ratings and prerequisites |
-| **Active recall challenges** | "Explain X", "Compare X and Y", "Apply X to solve Y" |
-| **Rubric-based grading** | Grades against what the source actually said, not vibes |
-| **Source citations** | Points to exact timestamps/paragraphs when you're wrong |
-| **Spaced repetition** | SM-2 algorithm schedules reviews at optimal intervals |
-| **Knowledge graph** | Connects concepts across sources, finds relationships |
-| **Micro-projects** | Suggests builds that reinforce what you learned |
-| **Progress tracking** | Retention stats, streaks, weak area identification |
-
----
-
-## Documentation
-
-- [Architecture Overview](docs/ARCHITECTURE.md)
-- [User Flow](docs/USER_FLOW.md)
-- [System Design](docs/SYSTEM_DESIGN.md)
-- [Data Models](docs/DATA_MODELS.md)
-- [Grading System](docs/GRADING.md)
-- [Spaced Repetition](docs/SPACED_REPETITION.md)
-- [Build Plan](docs/BUILD_PLAN.md)
+That's it. No knowledge graphs. No micro-projects. No magic.
 
 ---
 
@@ -91,44 +22,206 @@ Weakest area: "Mathematical foundations" (62% retention)
 
 ```bash
 # Install
-pip install learn-lock
+pip install learnlock
 
-# Configure LLM
-export GEMINI_API_KEY=your_key
+# Set API key (free tier works)
+export GROQ_API_KEY=your_key_from_console.groq.com
 
-# Add your first content
-learnlock add "https://youtube.com/watch?v=your-video"
+# Optional: Better evaluation quality
+export GEMINI_API_KEY=your_key_from_aistudio.google.com
 
-# Start studying
-learnlock study
+# Run
+learnlock
 ```
 
 ---
 
-## Why This Isn't Just Another Flashcard App
+## Usage
 
-| Flashcard Apps | learn-lock |
-|----------------|------------|
-| Passive Q&A | Active explanation challenges |
-| No feedback on wrong answers | Rubric-based grading with specific feedback |
-| No source connection | Points to exact source location |
-| Isolated cards | Knowledge graph connects concepts |
-| You create cards manually | Auto-extracts from any content |
-| No projects | Generates micro-projects to apply learning |
+```
+learnlock
+
+██╗     ███████╗ █████╗ ██████╗ ███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗
+██║     ██╔════╝██╔══██╗██╔══██╗████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝
+██║     █████╗  ███████║██████╔╝██╔██╗ ██║██║     ██║   ██║██║     █████╔╝ 
+██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ 
+███████╗███████╗██║  ██║██║  ██║██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗
+╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝
+
+Commands:
+  /add <source>     Add YouTube, article, GitHub, or PDF
+  /study            Study due concepts
+  /stats            Show your progress
+  /list             List all concepts
+  /due              Show what's due
+  /skip <name>      Skip a concept permanently
+  /unskip <name>    Restore skipped concept
+  /help             Show help
+  /quit             Exit
+```
+
+### Adding Content
+
+```bash
+# YouTube (extracts transcript)
+learnlock> https://youtube.com/watch?v=dQw4w9WgXcQ
+
+# Article
+learnlock> https://example.com/blog/some-article
+
+# GitHub repo (extracts README)
+learnlock> https://github.com/user/repo
+
+# PDF (local or URL)
+learnlock> /path/to/document.pdf
+learnlock> https://example.com/paper.pdf
+```
+
+### Studying
+
+```
+learnlock> /study
+
+📚 Study Session — 5 concepts to review
+
+━━━ 1/5: Attention Mechanism ━━━
+from Transformer Architecture Explained
+
+Challenge: What problem does the attention mechanism solve in sequence models?
+
+Hint: "Attention allows the model to focus on relevant parts..."
+
+(Press Enter twice when done)
+> Attention solves the problem of fixed-length context in RNNs.
+  It lets the model look at all input positions when generating
+  each output, weighted by relevance.
+
+★★★★☆ Great
+Good coverage of the core concept.
+✓ You got:
+  • fixed context problem
+  • weighted relevance
+✗ You missed:
+  • parallel computation benefit
+
+📅 Next review: in 3 days
+```
+
+---
+
+## Supported Sources
+
+| Source | Method | Notes |
+|--------|--------|-------|
+| YouTube | Transcript API | Falls back to Whisper if no captions |
+| Articles | trafilatura | Works on most blogs, may fail on paywalls |
+| PDF | pymupdf | Text extraction only, no OCR |
+| GitHub | API | Extracts README only |
+
+---
+
+## How Grading Works
+
+Your explanation is evaluated against the source material:
+
+| Score | Meaning |
+|-------|---------|
+| ★★★★★ | Perfect — Covered all key points |
+| ★★★★☆ | Great — Minor gaps |
+| ★★★☆☆ | Good — Partial understanding |
+| ★★☆☆☆ | Getting There — Significant gaps |
+| ★☆☆☆☆ | Needs Work — Review the source |
+
+Scores ≥3 advance the concept. Scores <3 reset the interval.
+
+---
+
+## Spaced Repetition
+
+Uses the SM-2 algorithm:
+- New concepts are due immediately
+- Correct answers increase interval (1 day → 3 days → 1 week → 2 weeks → ...)
+- Wrong answers reset to 1 day
+- "Mastered" = 3+ reviews with ease factor ≥2.5
+
+---
+
+## Data Storage
+
+All data stored locally in `~/.learnlock/data.db` (SQLite).
+
+No cloud sync. No accounts. No telemetry.
+
+---
+
+## Configuration
+
+Set via environment variables:
+
+```bash
+# Required
+GROQ_API_KEY=your_key
+
+# Optional
+GEMINI_API_KEY=your_key              # Better evaluation quality
+LEARNLOCK_DATA_DIR=~/.learnlock      # Data directory
+LEARNLOCK_MIN_CONCEPTS=8             # Min concepts per source
+LEARNLOCK_MAX_CONCEPTS=12            # Max concepts per source
+```
+
+---
+
+## Limitations
+
+Be honest about what this doesn't do:
+
+- **No mobile app** — CLI only
+- **No sync** — Local SQLite, single device
+- **No OCR** — Scanned PDFs won't work
+- **No timestamps** — Can't link back to video timestamps
+- **No knowledge graph** — Concepts aren't connected
+- **No team features** — Single user only
+- **Requires API keys** — No offline mode
 
 ---
 
 ## Tech Stack
 
 - Python 3.11+
-- SQLite (knowledge base)
-- Gemini API (LLM)
-- youtube-transcript-api
+- SQLite (local storage)
+- Groq API (concept extraction via Llama)
+- Gemini API (evaluation, optional)
+- typer + rich (CLI)
 - trafilatura (article extraction)
-- typer (CLI)
+- youtube-transcript-api
+- pymupdf (PDF extraction)
+
+---
+
+## Development
+
+```bash
+# Clone
+git clone https://github.com/MitudruDutta/learnlock.git
+cd learnlock
+
+# Install in dev mode
+pip install -e ".[dev]"
+
+# Run
+learnlock
+```
 
 ---
 
 ## License
 
 MIT
+
+---
+
+## Why This Exists
+
+I kept watching YouTube tutorials and forgetting everything. Anki is tedious. ChatGPT doesn't track progress. This scratches my own itch.
+
+If it helps you too, cool. If not, there are better tools with actual funding and mobile apps.
