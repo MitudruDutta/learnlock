@@ -1,0 +1,32 @@
+import { Sidebar } from "@/components/layout/sidebar";
+import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+
+export default function DocsLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col min-h-[calc(100vh-3.5rem)] font-[Varela_Round]">
+      {/* Mobile Header with Sidebar Toggle */}
+      <div className="sticky top-14 z-40 flex items-center gap-2 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2 md:hidden">
+        <MobileSidebar />
+        <span className="text-sm font-medium text-muted-foreground">Documentation</span>
+      </div>
+      
+      <div className="flex flex-1">
+        {/* Fixed Sidebar - Desktop */}
+        <aside className="fixed left-0 top-14 z-30 hidden h-[calc(100vh-3.5rem)] w-[220px] shrink-0 border-r border-border/50 bg-background md:block lg:w-[260px] xl:w-[280px]">
+          <div className="h-full overflow-y-auto py-6 px-3 lg:px-4 lg:py-8">
+            <Sidebar />
+          </div>
+        </aside>
+        
+        {/* Main Content - offset by sidebar width */}
+        <main className="flex-1 w-full md:ml-[220px] lg:ml-[260px] xl:ml-[280px]">
+          <div className="py-4 px-4 sm:py-6 sm:px-6 lg:py-8 lg:px-8">
+            <div className="mx-auto w-full max-w-3xl lg:max-w-4xl">
+              {children}
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

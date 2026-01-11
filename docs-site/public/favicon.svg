@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Background -->
+  <rect width="100" height="100" fill="#000000"/>
+  
+  <!-- Terminal border -->
+  <rect x="10" y="10" width="80" height="80" rx="6" fill="none" stroke="#10b981" stroke-width="3"/>
+  
+  <!-- Top bar -->
+  <rect x="10" y="10" width="80" height="18" rx="6" fill="#10b981"/>
+  
+  <!-- Dots on top bar -->
+  <circle cx="22" cy="19" r="2" fill="#000000"/>
+  <circle cx="36" cy="19" r="2" fill="#000000"/>
+  <circle cx="50" cy="19" r="2" fill="#000000"/>
+  
+  <!-- Command line 1 -->
+  <line x1="18" y1="40" x2="68" y2="40" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Command line 2 -->
+  <line x1="18" y1="55" x2="82" y2="55" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Command line 3 -->
+  <line x1="18" y1="70" x2="58" y2="70" stroke="#10b981" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Blinking cursor -->
+  <rect x="60" y="68" width="4" height="8" fill="#10b981"/>
+</svg>
