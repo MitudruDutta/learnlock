@@ -54,10 +54,16 @@ export GROQ_API_KEY=your_key
 export GEMINI_API_KEY=your_key
 ```
 
-**Windows:**
+**Windows (PowerShell):**
 ```powershell
 $env:GROQ_API_KEY="your_key"
 $env:GEMINI_API_KEY="your_key"
+```
+
+**Windows (CMD) - permanent:**
+```cmd
+setx GROQ_API_KEY "your_key"
+setx GEMINI_API_KEY "your_key"
 ```
 
 ---

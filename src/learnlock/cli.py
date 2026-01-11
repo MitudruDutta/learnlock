@@ -167,9 +167,18 @@ def _check_api_keys():
         console.print("[dim]Get your free API key:[/dim]")
         console.print("  1. Go to [cyan]https://console.groq.com[/cyan]")
         console.print("  2. Create account and get API key")
-        console.print("  3. Run: [white]export GROQ_API_KEY=your_key[/white]")
         console.print()
-        console.print("[dim]Or add to ~/.bashrc for persistence[/dim]")
+        if sys.platform == "win32":
+            console.print("[dim]Set it (PowerShell):[/dim]")
+            console.print('  [white]$env:GROQ_API_KEY="your_key"[/white]')
+            console.print()
+            console.print("[dim]Or permanent (CMD):[/dim]")
+            console.print('  [white]setx GROQ_API_KEY "your_key"[/white]')
+        else:
+            console.print("[dim]Set it:[/dim]")
+            console.print("  [white]export GROQ_API_KEY=your_key[/white]")
+            console.print()
+            console.print("[dim]Or add to ~/.bashrc for persistence[/dim]")
         return False
     return True
 
