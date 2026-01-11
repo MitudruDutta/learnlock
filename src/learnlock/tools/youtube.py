@@ -37,7 +37,22 @@ def _try_youtube_api(video_id: str, url: str) -> dict:
         from youtube_transcript_api import YouTubeTranscriptApi
         
         api = YouTubeTranscriptApi()
-        transcript = api.fetch(video_id, languages=("en",))
+        
+        # Try English first, then any available language
+        transcript = None
+        try:
+            transcript = api.fetch(video_id, languages=("en", "en-US", "en-GB"))
+        except:
+            # Get any available transcript
+            try:
+                transcript_list = api.list(video_id)
+                if transcript_list:
+                    transcript = transcript_list[0].fetch()
+            except:
+                pass
+        
+        if not transcript:
+            return {"error": "No transcript available"}
         
         text = " ".join([snippet.text for snippet in transcript])
         title = _get_video_title(video_id) or f"YouTube Video ({video_id})"

@@ -30,6 +30,25 @@ def _get_groq_response(prompt: str, system: str = None) -> str:
     return response.choices[0].message.content
 
 
+def generate_title(content: str, original_title: str) -> str:
+    """Generate a topic-based title from content using LLM."""
+    truncated = content[:2000].replace('\n', ' ')
+    
+    prompt = f"""Given this content, generate a clear topic-based title (3-7 words).
+
+Original title: {original_title}
+Content preview: {truncated}
+
+Reply with ONLY the title, nothing else. No quotes, no explanation."""
+
+    try:
+        response = _get_groq_response(prompt)
+        title = response.strip().strip('"\'')
+        return title[:100] if title else original_title
+    except:
+        return original_title
+
+
 def _get_gemini_response(prompt: str, system: str = None) -> str:
     """Get response from Gemini."""
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -108,7 +127,7 @@ def _parse_json_response(response: str) -> dict | list:
 def extract_concepts(content: str, title: str) -> list[dict]:
     """Extract concepts from content using Groq.
     
-    Returns list of {"name": str, "source_quote": str}
+    Returns list of {"name": str, "source_quote": str, "question": str}
     """
     system = """You are a learning assistant. Extract key concepts and return valid JSON only.
 Never include special characters or newlines inside JSON strings."""
@@ -127,11 +146,13 @@ CONTENT:
 
 Return ONLY a valid JSON array with this exact format:
 [
-  {{"name": "Short Concept Name", "source_quote": "Brief quote from content"}},
-  {{"name": "Another Concept", "source_quote": "Another brief quote"}}
+  {{"name": "Concept Name", "source_quote": "Brief quote from content", "question": "What is X and why is it used?"}},
+  {{"name": "Another Concept", "source_quote": "Another quote", "question": "Explain how X works"}}
 ]
 
 IMPORTANT: 
+- Generate a specific challenge QUESTION that tests understanding (not just "explain X")
+- Questions should be like: "What problem does X solve?", "How does X differ from Y?", "Why would you use X?"
 - Keep quotes SHORT (under {config.MAX_QUOTE_LENGTH} characters)
 - No special characters or newlines in strings
 - Return ONLY the JSON array, nothing else"""
@@ -148,8 +169,9 @@ IMPORTANT:
                 if isinstance(c, dict) and "name" in c and "source_quote" in c:
                     name = str(c["name"]).strip()[:config.MAX_CONCEPT_NAME_LENGTH]
                     quote = str(c["source_quote"]).strip()[:config.MAX_QUOTE_LENGTH]
+                    question = str(c.get("question", f"Explain {name} in your own words")).strip()[:200]
                     if name and quote:
-                        valid.append({"name": name, "source_quote": quote})
+                        valid.append({"name": name, "source_quote": quote, "question": question})
             
             if valid:
                 return valid
@@ -182,16 +204,22 @@ def evaluate_explanation(concept_name: str, source_quote: str, user_explanation:
     source_quote = source_quote[:config.MAX_QUOTE_LENGTH]
     user_explanation = user_explanation.strip()[:config.MAX_EXPLANATION_LENGTH]
     
-    prompt = f"""Grade this explanation. Return JSON only.
+    prompt = f"""Grade this explanation of "{concept_name}".
 
-Concept: {concept_name}
-Source: "{source_quote}"
-Student: "{user_explanation}"
+Source says: "{source_quote}"
+Student wrote: "{user_explanation}"
 
-Reply with ONLY this JSON format, no other text:
-{{"score":3,"covered":["point1"],"missed":["point2"],"feedback":"brief feedback"}}
+Return ONLY valid JSON:
+{{"score":3,"covered":["key point 1","key point 2"],"missed":["missing point"],"feedback":"One sentence feedback"}}
 
-Score 1-5: 1=wrong, 3=partial, 5=perfect"""
+Rules:
+- score: 1=wrong, 2=poor, 3=partial, 4=good, 5=perfect
+- covered: SHORT key points student got right (2-4 words each, max 3 items)
+- missed: SHORT key points student missed (2-4 words each, max 3 items)  
+- feedback: One helpful sentence
+
+Example covered: ["async support", "type hints", "auto docs"]
+Example missed: ["dependency injection", "validation"]"""
 
     # Try Gemini first, fallback to Groq
     response = None

@@ -36,6 +36,7 @@ def init_db(db_path: Path = None) -> None:
                 source_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 source_quote TEXT NOT NULL,
+                question TEXT,
                 skipped INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE
@@ -124,7 +125,7 @@ def get_source(source_id: int) -> Optional[dict]:
 
 # ============ CONCEPTS ============
 
-def add_concept(source_id: int, name: str, source_quote: str) -> int:
+def add_concept(source_id: int, name: str, source_quote: str, question: str = None) -> int:
     """Add a concept with initial progress. Returns concept ID.
     
     New concepts are due immediately so user can study right after adding.
@@ -135,8 +136,8 @@ def add_concept(source_id: int, name: str, source_quote: str) -> int:
     
     with get_db() as conn:
         cursor = conn.execute(
-            "INSERT INTO concepts (source_id, name, source_quote, created_at) VALUES (?, ?, ?, ?)",
-            (source_id, name, source_quote, now.isoformat())
+            "INSERT INTO concepts (source_id, name, source_quote, question, created_at) VALUES (?, ?, ?, ?, ?)",
+            (source_id, name, source_quote, question, now.isoformat())
         )
         concept_id = cursor.lastrowid
         

@@ -23,7 +23,7 @@ from . import config
 from . import storage
 from . import scheduler
 from . import llm
-from .tools import extract_youtube, extract_article
+from .tools import extract_youtube, extract_article, extract_pdf, extract_github
 
 
 def _flush_stdin():
@@ -94,6 +94,14 @@ def _is_youtube(url: str) -> bool:
     return "youtube.com" in url or "youtu.be" in url
 
 
+def _is_github(url: str) -> bool:
+    return "github.com" in url
+
+
+def _is_pdf(url: str) -> bool:
+    return url.endswith(".pdf") or "/pdf/" in url
+
+
 def _print_banner():
     console.print(BANNER)
 
@@ -137,7 +145,7 @@ def cmd_add(url: str) -> bool:
     url = url.strip()
     if not url:
         console.print("[yellow]Usage: /add <url>[/yellow]")
-        return False
+        return True
     
     # Check if exists
     existing = storage.get_source_by_url(url)
@@ -147,47 +155,70 @@ def cmd_add(url: str) -> bool:
         console.print(f"[dim]{len(concepts)} concepts[/dim]")
         return True
     
-    # Extract content
-    with _spinner("Fetching content..."):
+    from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
+    
+    with Progress(
+        SpinnerColumn(style="cyan"),
+        BarColumn(bar_width=20, complete_style="cyan", finished_style="green"),
+        TextColumn("[bold]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Fetching content...", total=4)
+        
+        # Step 1: Fetch based on URL type
         if _is_youtube(url):
             result = extract_youtube(url)
+        elif _is_github(url):
+            result = extract_github(url)
+        elif _is_pdf(url):
+            result = extract_pdf(url)
         else:
             result = extract_article(url)
-    
-    if "error" in result:
-        console.print(f"[red]✗ {result['error']}[/red]")
-        return False
-    
-    console.print(f"[green]✓[/green] {result['title']}")
-    
-    # Extract concepts
-    with _spinner("Extracting concepts..."):
+        
+        if "error" in result:
+            progress.stop()
+            console.print(f"[red]✗ {result['error']}[/red]")
+            return True
+        
+        progress.update(task, advance=1, description="Generating title...")
+        
+        # Step 2: Title
+        title = llm.generate_title(result["content"], result["title"])
+        progress.update(task, advance=1, description="Extracting concepts...")
+        
+        # Step 3: Concepts
         try:
-            concepts = llm.extract_concepts(result["content"], result["title"])
+            concepts = llm.extract_concepts(result["content"], title)
         except Exception as e:
+            progress.stop()
             console.print(f"[red]✗ Failed to extract concepts: {e}[/red]")
-            return False
+            return True
+        
+        if not concepts:
+            progress.stop()
+            console.print("[red]✗ No concepts found[/red]")
+            return True
+        
+        progress.update(task, advance=1, description="Saving...")
+        
+        # Step 4: Store
+        source_id = storage.add_source(
+            url=result["url"],
+            title=title,
+            source_type=result["source_type"],
+            raw_content=result["content"]
+        )
+        
+        for c in concepts:
+            storage.add_concept(source_id, c["name"], c["source_quote"], c.get("question"))
+        
+        progress.update(task, advance=1, description="Done!")
     
-    if not concepts:
-        console.print("[red]✗ No concepts found[/red]")
-        return False
-    
-    # Store
-    source_id = storage.add_source(
-        url=result["url"],
-        title=result["title"],
-        source_type=result["source_type"],
-        raw_content=result["content"]
-    )
-    
-    for c in concepts:
-        storage.add_concept(source_id, c["name"], c["source_quote"])
-    
+    console.print(f"[green]✓[/green] {title}")
     console.print(f"[green]✓[/green] Added {len(concepts)} concepts:")
     for c in concepts:
         console.print(f"  [dim]•[/dim] {c['name']}")
     
-    # Prompt to study immediately
     console.print()
     console.print(f"[cyan]{len(concepts)} concepts ready to study![/cyan]")
     console.print("[dim]Run /study to start, or press Enter[/dim]")
@@ -223,14 +254,17 @@ def cmd_study() -> bool:
         console.print(f"[bold]━━━ {studied}/{total_due}: {due['name']} ━━━[/bold]")
         console.print(f"[dim]from {due['source_title']}[/dim]")
         
-        # Source quote
+        # Challenge question
         console.print()
-        console.print("[cyan]Source says:[/cyan]")
-        console.print(f"  \"{due['source_quote']}\"")
+        question = due.get('question') or f"Explain {due['name']} in your own words"
+        console.print(f"[cyan]Challenge:[/cyan] {question}")
+        
+        # Source hint
+        console.print()
+        console.print(f"[dim]Hint: \"{due['source_quote'][:100]}...\"[/dim]")
         
         # Get explanation (multi-line: end with empty line or double Enter)
         console.print()
-        console.print("[cyan]Explain this in your own words:[/cyan]")
         console.print("[dim](Press Enter twice when done)[/dim]")
         
         _flush_stdin()  # Clear any buffered input before reading
@@ -291,7 +325,8 @@ def cmd_study() -> bool:
         
         # Update scheduler
         sched_result = scheduler.update_after_review(due["id"], eval_result["score"])
-        console.print(f"[dim]↳ Next review: {sched_result['next_review']}[/dim]")
+        console.print()
+        console.print(f"[dim]📅 Next review: {sched_result['next_review']}[/dim]")
         
         # Get next
         due = scheduler.get_next_due()
@@ -314,27 +349,37 @@ def cmd_study() -> bool:
 
 
 def _show_evaluation_result(result: dict):
-    """Display evaluation result - conversational style."""
+    """Display evaluation result with visual score bar."""
     score = result["score"]
     
-    # Score with emoji
+    # Visual score bar (★ filled, ☆ empty)
+    stars = "★" * score + "☆" * (5 - score)
+    
+    # Score display with color and label
+    labels = {1: "Needs Work", 2: "Getting There", 3: "Good", 4: "Great", 5: "Perfect"}
+    label = labels.get(score, "")
+    
     if score >= 4:
-        console.print(f"[green]🎯 {score}/5 — Excellent![/green]")
+        console.print(f"[green]{stars}[/green] [bold green]{label}[/bold green]")
     elif score >= 3:
-        console.print(f"[yellow]📝 {score}/5 — Good, but gaps[/yellow]")
+        console.print(f"[yellow]{stars}[/yellow] [bold yellow]{label}[/bold yellow]")
     else:
-        console.print(f"[red]📚 {score}/5 — Review needed[/red]")
+        console.print(f"[red]{stars}[/red] [bold red]{label}[/bold red]")
     
     # Feedback
     if result["feedback"]:
         console.print(f"[dim]{result['feedback']}[/dim]")
     
-    # Covered/Missed inline
+    # Covered/Missed as bullet points
     if result["covered"]:
-        console.print(f"[green]✓ Covered:[/green] {', '.join(result['covered'])}")
+        console.print("[green]✓ You got:[/green]")
+        for item in result["covered"][:3]:
+            console.print(f"  [green]•[/green] {item}")
     
     if result["missed"]:
-        console.print(f"[red]✗ Missed:[/red] {', '.join(result['missed'])}")
+        console.print("[red]✗ You missed:[/red]")
+        for item in result["missed"][:3]:
+            console.print(f"  [red]•[/red] {item}")
 
 
 def cmd_stats() -> bool:
