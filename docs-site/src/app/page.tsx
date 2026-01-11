@@ -13,10 +13,10 @@ export default function Home() {
       {/* Features Section */}
       <section className="relative py-24 md:py-32 overflow-hidden">
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-muted/30 to-background" />
+        <div className="absolute inset-0 bg-linear-to-b from-background via-muted/30 to-background" />
         
         <div className="container mx-auto px-4 relative">
-          <div className="mx-auto flex max-w-[58rem] flex-col items-center space-y-4 text-center mb-16">
+          <div className="mx-auto flex max-w-232 flex-col items-center space-y-4 text-center mb-16">
             <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Core Features</span>
             <h2 className="font-bold text-3xl leading-[1.1] sm:text-3xl md:text-5xl tracking-tight">
               Built on <span className="text-muted-foreground">proven science.</span>
@@ -26,8 +26,8 @@ export default function Home() {
             </p>
           </div>
           
-          <div className="mx-auto grid justify-center gap-6 sm:grid-cols-2 md:max-w-[64rem] lg:grid-cols-3">
-            <div className="h-full min-h-[320px] w-full bg-card p-8 rounded-xl border border-border/50 hover:border-foreground/20 transition-colors">
+          <div className="mx-auto grid justify-center gap-6 sm:grid-cols-2 md:max-w-5xl lg:grid-cols-3">
+            <div className="h-full min-h-80 w-full bg-card p-8 rounded-xl border border-border/50 hover:border-foreground/20 transition-colors">
               <Brain className="h-10 w-10 text-neutral-400 mb-4" />
               <p className="text-xl font-bold mt-2 text-foreground">
                 Adversarial Dialogue
@@ -42,7 +42,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="h-full min-h-[320px] w-full bg-card p-8 rounded-xl border border-border/50 hover:border-foreground/20 transition-colors">
+            <div className="h-full min-h-80 w-full bg-card p-8 rounded-xl border border-border/50 hover:border-foreground/20 transition-colors">
               <Zap className="h-10 w-10 text-yellow-500 mb-4" />
               <p className="text-xl font-bold mt-2 text-foreground">
                 SM-2 Scheduling
@@ -57,7 +57,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="h-full min-h-[320px] w-full bg-card p-8 rounded-xl border border-border/50 hover:border-foreground/20 transition-colors">
+            <div className="h-full min-h-80 w-full bg-card p-8 rounded-xl border border-border/50 hover:border-foreground/20 transition-colors">
               <Terminal className="h-10 w-10 text-blue-500 mb-4" />
               <p className="text-xl font-bold mt-2 text-foreground">
                 Terminal Native
@@ -78,7 +78,7 @@ export default function Home() {
       {/* How It Works Section */}
       <section className="relative py-24 md:py-32 bg-muted/20">
         <div className="container mx-auto px-4">
-          <div className="mx-auto flex max-w-[58rem] flex-col items-center space-y-4 text-center mb-16">
+          <div className="mx-auto flex max-w-232 flex-col items-center space-y-4 text-center mb-16">
             <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">The Process</span>
             <h2 className="font-bold text-3xl leading-[1.1] sm:text-3xl md:text-5xl tracking-tight">
               From content to <span className="text-muted-foreground">comprehension</span>
@@ -128,7 +128,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="relative py-24 md:py-32 bg-gradient-to-b from-muted/30 to-background">
+      <section className="relative py-24 md:py-32 bg-linear-to-b from-muted/30 to-background">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="font-bold text-3xl leading-[1.1] md:text-4xl tracking-tight mb-4">

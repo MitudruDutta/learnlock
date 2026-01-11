@@ -28,7 +28,7 @@ export function MobileSidebar() {
           <span className="sr-only">Toggle docs navigation</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 overflow-y-auto">
+      <SheetContent side="left" className="w-70 sm:w-80 p-0 overflow-y-auto">
         <SheetHeader className="p-4 border-b border-border">
           <SheetTitle>
             <Link 

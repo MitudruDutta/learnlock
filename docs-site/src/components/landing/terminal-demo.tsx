@@ -108,7 +108,7 @@ export function TerminalDemo() {
         className="p-2 sm:p-4 flex-1 overflow-y-auto overflow-x-hidden font-mono text-[10px] sm:text-xs md:text-sm leading-relaxed scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent text-white/90"
       >
         {lines.map((line, i) => (
-          <div key={i} className="mb-1 whitespace-pre-wrap break-words">
+          <div key={i} className="mb-1 whitespace-pre-wrap wrap-break-word">
             {line.type === "command" && <span className="text-green-500 mr-1 sm:mr-2">➜ ~</span>}
             {line.type === "input" && <span className="text-cyan-500 mr-1 sm:mr-2 font-bold">ll&gt;</span>}
             <span 

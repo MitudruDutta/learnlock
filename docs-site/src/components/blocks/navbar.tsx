@@ -86,7 +86,7 @@ export const Navbar = ({
   mobileExtraLinks = [],
 }: NavbarProps) => {
   return (
-    <section className="py-4 border-b border-border/40 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/80 sticky top-0 z-50">
+    <section className="py-4 border-b border-border/40 bg-black/95 backdrop-blur supports-backdrop-filter:bg-black/80 sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <nav className="hidden justify-between lg:flex">
           <div className="flex items-center gap-6">
