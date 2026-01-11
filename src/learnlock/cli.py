@@ -53,7 +53,7 @@ BANNER = """[bold cyan]
 
 HELP_TEXT = """
 [bold]Commands:[/bold]
-  [cyan]/add[/cyan] <url>        Add YouTube or article
+  [cyan]/add[/cyan] <source>     Add YouTube, article, GitHub, or PDF
   [cyan]/study[/cyan]            Study due concepts
   [cyan]/stats[/cyan]            Show your progress
   [cyan]/list[/cyan]             List all concepts
@@ -65,8 +65,14 @@ HELP_TEXT = """
   [cyan]/help[/cyan]             Show this help
   [cyan]/quit[/cyan]             Exit
 
+[bold]Supported Sources:[/bold]
+  • YouTube videos (youtube.com, youtu.be)
+  • GitHub repos (github.com/user/repo)
+  • PDF files (URLs or local paths)
+  • Web articles (any URL)
+
 [bold]Tips:[/bold]
-  • Just type a URL to add it
+  • Just paste a URL or file path to add it
   • Press Enter with no input to start studying
   • Type 'skip' during study to skip current concept
 """
@@ -90,6 +96,10 @@ def _is_url(text: str) -> bool:
     return text.startswith(("http://", "https://", "www."))
 
 
+def _is_local_file(text: str) -> bool:
+    return os.path.exists(text)
+
+
 def _is_youtube(url: str) -> bool:
     return "youtube.com" in url or "youtu.be" in url
 
@@ -98,8 +108,8 @@ def _is_github(url: str) -> bool:
     return "github.com" in url
 
 
-def _is_pdf(url: str) -> bool:
-    return url.endswith(".pdf") or "/pdf/" in url
+def _is_pdf(path: str) -> bool:
+    return path.endswith(".pdf") or "/pdf/" in path
 
 
 def _print_banner():
@@ -627,8 +637,8 @@ def handle_input(user_input: str) -> bool:
             console.print("[dim]Type /help for available commands[/dim]")
             return True
     
-    # URL detection
-    if _is_url(user_input):
+    # URL or local file detection
+    if _is_url(user_input) or _is_local_file(user_input):
         return cmd_add(user_input)
     
     # Unknown input
