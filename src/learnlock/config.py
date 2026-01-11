@@ -8,7 +8,7 @@ DATA_DIR = Path(os.getenv("LEARNLOCK_DATA_DIR", Path.home() / ".learnlock"))
 DB_PATH = DATA_DIR / "data.db"
 
 # ============ LLM MODELS ============
-GROQ_MODEL = os.getenv("LEARNLOCK_GROQ_MODEL", "openai/gpt-oss-120b")
+GROQ_MODEL = os.getenv("LEARNLOCK_GROQ_MODEL", "llama-3.3-70b-versatile")
 GEMINI_MODEL = os.getenv("LEARNLOCK_GEMINI_MODEL", "gemini-2.5-flash")
 
 # ============ LLM PARAMETERS ============

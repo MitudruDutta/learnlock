@@ -3,6 +3,10 @@
 import os
 import json
 import re
+import warnings
+
+# Suppress all warnings before any imports
+warnings.filterwarnings("ignore")
 
 from . import config
 
@@ -124,6 +128,13 @@ def _parse_json_response(response: str) -> dict | list:
     raise ValueError("Could not parse JSON from response")
 
 
+def _calc_concept_count(content_len: int) -> tuple[int, int]:
+    """Calculate min/max concepts based on content length."""
+    # ~1 concept per 500 chars, clamped to 3-20
+    base = max(3, min(20, content_len // 500))
+    return max(3, base - 2), min(20, base + 2)
+
+
 def extract_concepts(content: str, title: str) -> list[dict]:
     """Extract concepts from content using Groq.
     
@@ -137,7 +148,8 @@ Never include special characters or newlines inside JSON strings."""
     truncated_content = truncated_content.replace('"', "'").replace('\n', ' ').replace('\r', ' ')
     truncated_content = re.sub(r'\s+', ' ', truncated_content)
 
-    prompt = f"""Extract {config.MIN_CONCEPTS}-{config.MAX_CONCEPTS} key concepts from this content.
+    min_concepts, max_concepts = _calc_concept_count(len(content))
+    prompt = f"""Extract {min_concepts}-{max_concepts} key concepts from this content.
 
 TITLE: {title}
 

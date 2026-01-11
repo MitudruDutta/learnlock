@@ -5,6 +5,14 @@ import os
 import json
 import re
 import select
+import warnings
+import logging
+
+# Suppress all warnings and litellm logging noise
+warnings.filterwarnings("ignore")
+logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
+logging.getLogger("litellm").setLevel(logging.CRITICAL)
+
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Callable
@@ -28,16 +36,23 @@ from .tools import extract_youtube, extract_article, extract_pdf, extract_github
 
 def _flush_stdin():
     """Flush any buffered stdin input."""
-    try:
-        import termios
-        termios.tcflush(sys.stdin, termios.TCIFLUSH)
-    except (ImportError, termios.error):
-        # Windows or no terminal - try select-based flush
+    if sys.platform == "win32":
         try:
-            while select.select([sys.stdin], [], [], 0)[0]:
-                sys.stdin.readline()
+            import msvcrt
+            while msvcrt.kbhit():
+                msvcrt.getch()
         except:
             pass
+    else:
+        try:
+            import termios
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+        except:
+            try:
+                while select.select([sys.stdin], [], [], 0)[0]:
+                    sys.stdin.readline()
+            except:
+                pass
 
 # ============ CONSTANTS ============
 VERSION = "0.1.0"
@@ -48,13 +63,12 @@ BANNER = """[bold cyan]
 ██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ 
 ███████╗███████╗██║  ██║██║  ██║██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗
 ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝[/bold cyan]
-[dim]Stop consuming. Start retaining.[/dim]
 """
 
 HELP_TEXT = """
 [bold]Commands:[/bold]
   [cyan]/add[/cyan] <source>     Add YouTube, article, GitHub, or PDF
-  [cyan]/study[/cyan]            Study due concepts
+  [cyan]/study[/cyan]            Start adversarial study session
   [cyan]/stats[/cyan]            Show your progress
   [cyan]/list[/cyan]             List all concepts
   [cyan]/due[/cyan]              Show what's due
@@ -65,16 +79,20 @@ HELP_TEXT = """
   [cyan]/help[/cyan]             Show this help
   [cyan]/quit[/cyan]             Exit
 
+[bold]How It Works:[/bold]
+  1. You explain a concept
+  2. I find holes in your understanding
+  3. I challenge you with follow-up questions
+  4. Your score drops for each gap exposed
+  5. No bullshitting allowed
+
 [bold]Supported Sources:[/bold]
-  • YouTube videos (youtube.com, youtu.be)
-  • GitHub repos (github.com/user/repo)
-  • PDF files (URLs or local paths)
-  • Web articles (any URL)
+  • YouTube videos • GitHub repos • PDFs • Web articles
 
 [bold]Tips:[/bold]
-  • Just paste a URL or file path to add it
-  • Press Enter with no input to start studying
-  • Type 'skip' during study to skip current concept
+  • Paste a URL to add content
+  • Press Enter to start studying
+  • Be specific — vague answers get challenged
 """
 
 console = Console()
@@ -98,6 +116,14 @@ def _is_url(text: str) -> bool:
 
 def _is_local_file(text: str) -> bool:
     return os.path.exists(text)
+
+
+def _is_image_path(text: str) -> bool:
+    """Check if text is a path to an image file."""
+    if not os.path.exists(text):
+        return False
+    from pathlib import Path
+    return Path(text).suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif")
 
 
 def _is_youtube(url: str) -> bool:
@@ -136,7 +162,7 @@ def _print_status():
 def _check_api_keys():
     """Check for required API keys."""
     if not os.environ.get("GROQ_API_KEY"):
-        console.print("[red]✗ GROQ_API_KEY not set[/red]")
+        console.print("[red]Error: GROQ_API_KEY not set[/red]")
         console.print()
         console.print("[dim]Get your free API key:[/dim]")
         console.print("  1. Go to [cyan]https://console.groq.com[/cyan]")
@@ -187,7 +213,7 @@ def cmd_add(url: str) -> bool:
         
         if "error" in result:
             progress.stop()
-            console.print(f"[red]✗ {result['error']}[/red]")
+            console.print(f"[red]Error: {result['error']}[/red]")
             return True
         
         progress.update(task, advance=1, description="Generating title...")
@@ -201,12 +227,12 @@ def cmd_add(url: str) -> bool:
             concepts = llm.extract_concepts(result["content"], title)
         except Exception as e:
             progress.stop()
-            console.print(f"[red]✗ Failed to extract concepts: {e}[/red]")
+            console.print(f"[red]Error: Failed to extract concepts: {e}[/red]")
             return True
         
         if not concepts:
             progress.stop()
-            console.print("[red]✗ No concepts found[/red]")
+            console.print("[red]Error: No concepts found[/red]")
             return True
         
         progress.update(task, advance=1, description="Saving...")
@@ -224,8 +250,8 @@ def cmd_add(url: str) -> bool:
         
         progress.update(task, advance=1, description="Done!")
     
-    console.print(f"[green]✓[/green] {title}")
-    console.print(f"[green]✓[/green] Added {len(concepts)} concepts:")
+    console.print(f"[green]OK[/green] {title}")
+    console.print(f"[green]OK[/green] Added {len(concepts)} concepts:")
     for c in concepts:
         console.print(f"  [dim]•[/dim] {c['name']}")
     
@@ -237,7 +263,9 @@ def cmd_add(url: str) -> bool:
 
 
 def cmd_study() -> bool:
-    """Interactive study session - one concept at a time, conversational."""
+    """Interactive study session with Socratic adversarial coaching."""
+    from .coach import create_coach
+    
     due = scheduler.get_next_due()
     
     if not due:
@@ -246,18 +274,26 @@ def cmd_study() -> bool:
             console.print("[dim]No concepts yet. Add some content first:[/dim]")
             console.print("  [cyan]/add[/cyan] <youtube-url>")
         else:
-            console.print("[green]✓[/green] All caught up! Nothing due for review.")
+            console.print("[green]OK[/green] All caught up! Nothing due for review.")
         return True
     
     total_due = len(scheduler.get_all_due())
     studied = 0
     
     console.print()
-    console.print(f"[bold cyan]📚 Study Session[/bold cyan] — {total_due} concepts to review")
+    console.print(f"[bold cyan]Study Session[/bold cyan] — {total_due} concepts to review")
     console.print("[dim]Type 'skip' to skip, 'q' to quit anytime[/dim]")
+    console.print("[dim]⚔️  Adversarial mode: I'll challenge your understanding[/dim]")
     
     while due:
         studied += 1
+        
+        # Create Socratic coach for this concept
+        coach = create_coach(
+            concept_name=due["name"],
+            source_quote=due["source_quote"],
+            question=due.get("question")
+        )
         
         # Concept header
         console.print()
@@ -266,79 +302,118 @@ def cmd_study() -> bool:
         
         # Challenge question
         console.print()
-        question = due.get('question') or f"Explain {due['name']} in your own words"
-        console.print(f"[cyan]Challenge:[/cyan] {question}")
+        console.print(f"[cyan]Challenge:[/cyan] {coach.get_initial_challenge()}")
         
         # Source hint
         console.print()
-        console.print(f"[dim]Hint: \"{due['source_quote'][:100]}...\"[/dim]")
+        hint_text = due['source_quote'][:100] + "..." if len(due['source_quote']) > 100 else due['source_quote']
+        console.print(f"[dim]Hint: \"{hint_text}\"[/dim]")
         
-        # Get explanation (multi-line: end with empty line or double Enter)
-        console.print()
-        console.print("[dim](Press Enter twice when done)[/dim]")
+        # Multi-turn dialogue loop
+        all_explanations = []
         
-        _flush_stdin()  # Clear any buffered input before reading
-        lines = []
-        try:
-            while True:
-                line = console.input("[bold]> [/bold]" if not lines else "[bold]  [/bold]")
-                if not line and lines:  # Empty line after content = done
-                    break
-                if line:
-                    lines.append(line)
-                elif not lines:  # First line empty = prompt again
-                    console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
-        except (EOFError, KeyboardInterrupt):
-            console.print("\n[dim]Session ended.[/dim]")
-            return True
+        while not coach.finished:
+            console.print()
+            console.print("[dim](Press Enter twice when done)[/dim]")
+            
+            _flush_stdin()
+            lines = []
+            try:
+                while True:
+                    line = console.input("[bold]> [/bold]" if not lines else "[bold]  [/bold]")
+                    if not line and lines:
+                        break
+                    if line:
+                        lines.append(line)
+                    elif not lines:
+                        console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[dim]Session ended.[/dim]")
+                return True
+            
+            _flush_stdin()
+            explanation = " ".join(lines).strip()
+            
+            # Handle commands
+            if explanation.lower() in ("q", "quit", "/quit", "exit"):
+                console.print("[dim]Session ended.[/dim]")
+                return True
+            
+            if explanation.lower() in ("skip", "s", "/skip"):
+                storage.skip_concept(due["id"])
+                console.print("[yellow]⏭ Skipped — won't appear again[/yellow]")
+                break
+            
+            if not explanation:
+                console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
+                continue
+            
+            # Check if user provided an image path - extract text via OCR
+            if _is_image_path(explanation):
+                with _spinner("Extracting text from image..."):
+                    from .ocr import extract_text_from_image, check_relevance
+                    ocr_result = extract_text_from_image(explanation)
+                
+                if "error" in ocr_result:
+                    console.print(f"[red]Error: {ocr_result['error']}[/red]")
+                    continue
+                
+                if not ocr_result["text"].strip():
+                    console.print("[yellow]No text found in image. Try again.[/yellow]")
+                    continue
+                
+                extracted_text = ocr_result["text"]
+                
+                # Check if extracted text is relevant to the concept
+                with _spinner("Checking relevance..."):
+                    relevance = check_relevance(extracted_text, due["name"], due["source_quote"])
+                
+                if not relevance["is_relevant"]:
+                    console.print(f"[red]Error: Image content not related to '{due['name']}'[/red]")
+                    console.print(f"[dim]Detected: \"{extracted_text[:80]}...\"[/dim]")
+                    console.print("[yellow]Please provide an explanation related to the topic.[/yellow]")
+                    continue
+                
+                explanation = extracted_text
+                console.print(f"[dim]📷 Extracted: \"{explanation[:100]}{'...' if len(explanation) > 100 else ''}\"[/dim]")
+            
+            all_explanations.append(explanation)
+            
+            # Get coach response
+            with _spinner("Analyzing..."):
+                result = coach.respond(explanation)
+            
+            console.print()
+            
+            if result["type"] == "followup":
+                # Show follow-up challenge
+                console.print(f"[yellow]{result['message']}[/yellow]")
+            else:
+                # Final result
+                _show_coach_result(result)
+                
+                # Store
+                storage.add_explanation(
+                    concept_id=due["id"],
+                    text=" | ".join(all_explanations),
+                    score=result["score"],
+                    covered=", ".join(result["strengths"]) if result["strengths"] else None,
+                    missed=", ".join(result["holes"][:3]) if result["holes"] else None,
+                    feedback=result["message"]
+                )
+                
+                # Update scheduler
+                sched_result = scheduler.update_after_review(due["id"], result["score"])
+                console.print()
+                console.print(f"[dim]Next review: Next review: {sched_result['next_review']}[/dim]")
         
-        _flush_stdin()  # Clear any remaining buffered input after reading
-        explanation = " ".join(lines).strip()
-        
-        # Handle commands
-        if explanation.lower() in ("q", "quit", "/quit", "exit"):
-            console.print("[dim]Session ended.[/dim]")
-            return True
-        
+        # Check if skipped (break from inner loop)
         if explanation.lower() in ("skip", "s", "/skip"):
-            storage.skip_concept(due["id"])
-            console.print("[yellow]⏭ Skipped — won't appear again[/yellow]")
             due = scheduler.get_next_due()
             total_due = len(scheduler.get_all_due()) + studied
             continue
         
-        if not explanation:
-            console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
-            continue
-        
-        # Evaluate
-        with _spinner("Thinking..."):
-            eval_result = llm.evaluate_explanation(
-                concept_name=due["name"],
-                source_quote=due["source_quote"],
-                user_explanation=explanation
-            )
-        
-        # Show result inline
-        console.print()
-        _show_evaluation_result(eval_result)
-        
-        # Store
-        storage.add_explanation(
-            concept_id=due["id"],
-            text=explanation,
-            score=eval_result["score"],
-            covered=", ".join(eval_result["covered"]) if eval_result["covered"] else None,
-            missed=", ".join(eval_result["missed"]) if eval_result["missed"] else None,
-            feedback=eval_result["feedback"]
-        )
-        
-        # Update scheduler
-        sched_result = scheduler.update_after_review(due["id"], eval_result["score"])
-        console.print()
-        console.print(f"[dim]📅 Next review: {sched_result['next_review']}[/dim]")
-        
-        # Get next
+        # Get next concept
         due = scheduler.get_next_due()
         
         if due:
@@ -354,16 +429,53 @@ def cmd_study() -> bool:
                 return True
     
     console.print()
-    console.print(f"[green]✓[/green] Done! Reviewed {studied} concepts.")
+    console.print(f"[green]OK[/green] Done! Reviewed {studied} concepts.")
     return True
+
+
+def _show_coach_result(result: dict):
+    """Display Socratic coach final result."""
+    score = result["score"]
+    
+    # Visual score bar
+    stars = "█" * score + "░" * (5 - score)
+    labels = {1: "Needs Work", 2: "Getting There", 3: "Good", 4: "Great", 5: "Perfect"}
+    label = labels.get(score, "")
+    
+    if score >= 4:
+        console.print(f"[green]{stars}[/green] [bold green]{label}[/bold green]")
+    elif score >= 3:
+        console.print(f"[yellow]{stars}[/yellow] [bold yellow]{label}[/bold yellow]")
+    else:
+        console.print(f"[red]{stars}[/red] [bold red]{label}[/bold red]")
+    
+    # Feedback
+    if result.get("message"):
+        console.print(f"[dim]{result['message']}[/dim]")
+    
+    # Strengths
+    if result.get("strengths"):
+        console.print("[green]Solid understanding:[/green]")
+        for s in result["strengths"][:2]:
+            # Truncate long strengths
+            s_short = s[:150] + "..." if len(s) > 150 else s
+            console.print(f"  [green]•[/green] {s_short}")
+    
+    # Holes found
+    if result.get("holes"):
+        console.print("[red]Gaps exposed:[/red]")
+        for h in result["holes"][:3]:
+            # Truncate long holes
+            h_short = h[:150] + "..." if len(h) > 150 else h
+            console.print(f"  [red]•[/red] {h_short}")
 
 
 def _show_evaluation_result(result: dict):
     """Display evaluation result with visual score bar."""
     score = result["score"]
     
-    # Visual score bar (★ filled, ☆ empty)
-    stars = "★" * score + "☆" * (5 - score)
+    # Visual score bar (█ filled, ░ empty)
+    stars = "█" * score + "░" * (5 - score)
     
     # Score display with color and label
     labels = {1: "Needs Work", 2: "Getting There", 3: "Good", 4: "Great", 5: "Perfect"}
@@ -382,12 +494,12 @@ def _show_evaluation_result(result: dict):
     
     # Covered/Missed as bullet points
     if result["covered"]:
-        console.print("[green]✓ You got:[/green]")
+        console.print("[green]You got:[/green]")
         for item in result["covered"][:3]:
             console.print(f"  [green]•[/green] {item}")
     
     if result["missed"]:
-        console.print("[red]✗ You missed:[/red]")
+        console.print("[red]You missed:[/red]")
         for item in result["missed"][:3]:
             console.print(f"  [red]•[/red] {item}")
 
@@ -474,7 +586,7 @@ def cmd_due() -> bool:
     due = scheduler.get_all_due()
     
     if not due:
-        console.print("[green]✓[/green] Nothing due! All caught up.")
+        console.print("[green]OK[/green] Nothing due! All caught up.")
         return True
     
     console.print(f"[bold]{len(due)} concepts due for review:[/bold]")
@@ -511,7 +623,7 @@ def cmd_skip(name: str) -> bool:
         return True
     
     storage.skip_concept(matches[0]["id"])
-    console.print(f"[green]✓[/green] Skipped: {matches[0]['name']}")
+    console.print(f"[green]OK[/green] Skipped: {matches[0]['name']}")
     return True
 
 
@@ -560,7 +672,7 @@ def cmd_unskip(name: str) -> bool:
         return True
     
     storage.unskip_concept(matches[0]["id"])
-    console.print(f"[green]✓[/green] Restored: {matches[0]['name']}")
+    console.print(f"[green]OK[/green] Restored: {matches[0]['name']}")
     return True
 
 
