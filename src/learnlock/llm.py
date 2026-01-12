@@ -138,7 +138,7 @@ def _calc_concept_count(content_len: int) -> tuple[int, int]:
 def extract_concepts(content: str, title: str) -> list[dict]:
     """Extract concepts from content using Groq.
     
-    Returns list of {"name": str, "source_quote": str, "question": str}
+    Returns list of {"name": str, "source_quote": str, "claims": str, "question": str}
     """
     system = """You are a learning assistant. Extract key concepts and return valid JSON only.
 Never include special characters or newlines inside JSON strings."""
@@ -158,14 +158,14 @@ CONTENT:
 
 Return ONLY a valid JSON array with this exact format:
 [
-  {{"name": "Concept Name", "source_quote": "Brief quote from content", "question": "What is X and why is it used?"}},
-  {{"name": "Another Concept", "source_quote": "Another quote", "question": "Explain how X works"}}
+  {{"name": "Concept Name", "source_quote": "Brief quote from content", "claims": "X does Y by Z. It requires A. It produces B.", "question": "What is X and why is it used?"}}
 ]
 
-IMPORTANT: 
-- Generate a specific challenge QUESTION that tests understanding (not just "explain X")
+IMPORTANT:
+- source_quote: A brief quote from the content (under {config.MAX_QUOTE_LENGTH} chars)
+- claims: 2-4 SPECIFIC factual claims about this concept. What it does, how it works, what it requires. Testable statements.
+- question: A challenge question that tests understanding
 - Questions should be like: "What problem does X solve?", "How does X differ from Y?", "Why would you use X?"
-- Keep quotes SHORT (under {config.MAX_QUOTE_LENGTH} characters)
 - No special characters or newlines in strings
 - Return ONLY the JSON array, nothing else"""
 
@@ -181,9 +181,15 @@ IMPORTANT:
                 if isinstance(c, dict) and "name" in c and "source_quote" in c:
                     name = str(c["name"]).strip()[:config.MAX_CONCEPT_NAME_LENGTH]
                     quote = str(c["source_quote"]).strip()[:config.MAX_QUOTE_LENGTH]
+                    claims = str(c.get("claims", quote)).strip()[:500]
                     question = str(c.get("question", f"Explain {name} in your own words")).strip()[:200]
                     if name and quote:
-                        valid.append({"name": name, "source_quote": quote, "question": question})
+                        # Use claims as ground truth if available, fallback to quote
+                        valid.append({
+                            "name": name,
+                            "source_quote": claims if claims else quote,
+                            "question": question
+                        })
             
             if valid:
                 return valid

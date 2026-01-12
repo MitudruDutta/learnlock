@@ -1,4 +1,4 @@
-"""YouTube transcript extraction."""
+"""YouTube transcript extraction with timestamps for concept linking."""
 
 import re
 import os
@@ -6,44 +6,40 @@ from typing import Optional
 
 
 def extract_youtube(url: str) -> dict:
-    """Extract transcript from YouTube video.
+    """Extract transcript with timestamps from YouTube.
     
-    Returns: {"title": str, "content": str, "url": str, "source_type": "youtube"}
+    Returns: {
+        "title": str,
+        "content": str,
+        "url": str,
+        "source_type": "youtube",
+        "segments": [{"text": str, "start": float}, ...]
+    }
     Or: {"error": str}
     """
     video_id = _extract_video_id(url)
     if not video_id:
         return {"error": "Invalid YouTube URL"}
     
-    # Try YouTube transcript API first
     result = _try_youtube_api(video_id, url)
-    if "error" not in result:
-        return result
-    
-    # Fallback to Whisper if GROQ_API_KEY is set
-    if os.getenv("GROQ_API_KEY"):
-        whisper_result = _try_whisper_fallback(video_id, url)
-        if "error" not in whisper_result:
-            return whisper_result
-        # Return combined error
-        return {"error": f"{result['error']}. Whisper fallback: {whisper_result['error']}"}
+    if "error" in result:
+        if os.getenv("GROQ_API_KEY"):
+            result = _try_whisper_fallback(video_id, url)
     
     return result
 
 
 def _try_youtube_api(video_id: str, url: str) -> dict:
-    """Get transcript via YouTube API."""
+    """Get transcript with timestamps via YouTube API."""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         
         api = YouTubeTranscriptApi()
-        
-        # Try English first, then any available language
         transcript = None
+        
         try:
             transcript = api.fetch(video_id, languages=("en", "en-US", "en-GB"))
         except:
-            # Get any available transcript
             try:
                 transcript_list = api.list(video_id)
                 if transcript_list:
@@ -54,7 +50,8 @@ def _try_youtube_api(video_id: str, url: str) -> dict:
         if not transcript:
             return {"error": "No transcript available"}
         
-        text = " ".join([snippet.text for snippet in transcript])
+        segments = [{"text": s.text, "start": s.start} for s in transcript]
+        text = " ".join([s.text for s in transcript])
         title = _get_video_title(video_id) or f"YouTube Video ({video_id})"
         
         return {
@@ -62,9 +59,98 @@ def _try_youtube_api(video_id: str, url: str) -> dict:
             "content": text,
             "url": url,
             "source_type": "youtube",
+            "segments": segments,
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+def find_timestamp_for_text(segments: list[dict], search_text: str) -> Optional[float]:
+    """Find timestamp where a concept appears in transcript."""
+    if not segments:
+        return None
+    
+    search_lower = search_text.lower()
+    search_words = set(search_lower.split())
+    
+    best_match = None
+    best_score = 0
+    
+    for seg in segments:
+        seg_text = seg["text"].lower()
+        if search_lower[:30] in seg_text:
+            return seg["start"]
+        seg_words = set(seg_text.split())
+        overlap = len(search_words & seg_words)
+        if overlap > best_score:
+            best_score = overlap
+            best_match = seg["start"]
+    
+    return best_match if best_score >= 2 else None
+
+
+def get_video_link_at_time(url: str, timestamp: float) -> str:
+    """Generate YouTube URL at specific timestamp."""
+    video_id = _extract_video_id(url)
+    if not video_id:
+        return url
+    return f"https://youtube.com/watch?v={video_id}&t={int(timestamp)}"
+
+
+def extract_frame_at_timestamp(url: str, timestamp: float) -> Optional[str]:
+    """Extract frame at timestamp and describe with Gemini Vision. On-demand when user fails."""
+    if not os.getenv("GEMINI_API_KEY"):
+        return None
+    
+    video_id = _extract_video_id(url)
+    if not video_id:
+        return None
+    
+    try:
+        import tempfile
+        import subprocess
+        import yt_dlp
+        import google.generativeai as genai
+        import PIL.Image
+        
+        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            video_path = os.path.join(tmpdir, "v.mp4")
+            frame_path = os.path.join(tmpdir, "frame.jpg")
+            
+            with yt_dlp.YoutubeDL({
+                "format": "worst[ext=mp4]/worst",
+                "outtmpl": video_path,
+                "quiet": True,
+                "no_warnings": True,
+            }) as ydl:
+                ydl.download([url])
+            
+            if not os.path.exists(video_path):
+                return None
+            
+            subprocess.run([
+                "ffmpeg", "-ss", str(timestamp), "-i", video_path,
+                "-frames:v", "1", "-q:v", "2", frame_path
+            ], capture_output=True, timeout=30)
+            
+            if not os.path.exists(frame_path):
+                return None
+            
+            img = PIL.Image.open(frame_path)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            resp = model.generate_content([
+                "Describe what is shown in this educational video frame. "
+                "Focus on: equations, diagrams, text, code, formulas, whiteboard. "
+                "Transcribe any visible text exactly. Be specific.",
+                img
+            ])
+            
+            return resp.text.strip() if resp.text else None
+            
+    except:
+        return None
 
 
 def _try_whisper_fallback(video_id: str, url: str) -> dict:

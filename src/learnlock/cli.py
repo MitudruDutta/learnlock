@@ -1,9 +1,7 @@
-"""learn-lock CLI - Interactive learning system like Claude Code."""
+"""learn-lock CLI - Interactive learning system with adversarial spaced repetition."""
 
 import sys
 import os
-import json
-import re
 import select
 import warnings
 import logging
@@ -13,18 +11,14 @@ warnings.filterwarnings("ignore")
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("litellm").setLevel(logging.CRITICAL)
 
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional, Callable
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.markdown import Markdown
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Prompt, Confirm
-from rich.text import Text
+from rich.prompt import Prompt
 from rich import box
 
 from . import config
@@ -246,12 +240,18 @@ def cmd_add(url: str) -> bool:
         
         progress.update(task, advance=1, description="Saving...")
         
-        # Step 4: Store
+        # Step 4: Store (with segments if available for YouTube)
+        segments_json = None
+        if result.get("segments"):
+            import json
+            segments_json = json.dumps(result["segments"])
+        
         source_id = storage.add_source(
             url=result["url"],
             title=title,
             source_type=result["source_type"],
-            raw_content=result["content"]
+            raw_content=result["content"],
+            segments=segments_json
         )
         
         for c in concepts:
@@ -272,8 +272,9 @@ def cmd_add(url: str) -> bool:
 
 
 def cmd_study() -> bool:
-    """Interactive study session with Socratic adversarial coaching."""
-    from .coach import create_coach
+    """Interactive study session with Duel Engine - adversarial Socratic interrogation."""
+    from .duel import create_duel, belief_to_score, save_duel_data
+    from .hud import render_duel_state, render_attack, render_reveal
     
     due = scheduler.get_next_due()
     
@@ -290,40 +291,48 @@ def cmd_study() -> bool:
     studied = 0
     
     console.print()
-    console.print(f"[bold cyan]Study Session[/bold cyan] — {total_due} concepts to review")
-    console.print("[dim]Type 'skip' to skip, 'q' to quit anytime[/dim]")
-    console.print("[dim]⚔️  Adversarial mode: I'll challenge your understanding[/dim]")
+    console.print(f"[bold cyan]DUEL SESSION[/bold cyan] - {total_due} concepts")
+    console.print("[dim]I will find what you don't know. Type 'skip' or 'q' anytime.[/dim]")
+    console.print("[dim]Double Enter to send your answer.[/dim]")
     
     while due:
         studied += 1
         
-        # Create Socratic coach for this concept
-        coach = create_coach(
-            concept_name=due["name"],
-            source_quote=due["source_quote"],
+        # Create Duel Engine
+        duel = create_duel(
+            concept=due["name"],
+            ground_truth=due["source_quote"],
             question=due.get("question")
         )
         
-        # Concept header
+        # Header
         console.print()
-        console.print(f"[bold]━━━ {studied}/{total_due}: {due['name']} ━━━[/bold]")
-        console.print(f"[dim]from {due['source_title']}[/dim]")
+        console.print(f"[bold]--- {studied}/{total_due}: {due['name']} ---[/bold]")
+        console.print(f"[dim]{due['source_title']}[/dim]")
         
-        # Challenge question
-        console.print()
-        console.print(f"[cyan]Challenge:[/cyan] {coach.get_initial_challenge()}")
-        
-        # Source hint
-        console.print()
-        hint_text = due['source_quote'][:100] + "..." if len(due['source_quote']) > 100 else due['source_quote']
-        console.print(f"[dim]Hint: \"{hint_text}\"[/dim]")
-        
-        # Multi-turn dialogue loop
-        all_explanations = []
-        
-        while not coach.finished:
+        # Show memory from last duel (if exists)
+        memory = storage.get_duel_memory(due["id"])
+        if memory and memory.get("last_belief"):
             console.print()
-            console.print("[dim](Press Enter twice when done)[/dim]")
+            console.print("[dim]Last time you believed:[/dim]")
+            console.print(f"  \"{memory['last_belief']}\"")
+            if memory.get("last_errors"):
+                console.print(f"[dim]It failed because:[/dim] {memory['last_errors']}")
+            console.print("[dim]Let's see if you still believe it.[/dim]")
+        
+        # Initial HUD - show claims panel
+        console.print()
+        render_duel_state(duel, console)
+        
+        # Initial challenge
+        console.print()
+        render_attack(duel.get_challenge(), console)
+        
+        skipped = False
+        
+        # Duel loop
+        while not duel.finished:
+            console.print()
             
             _flush_stdin()
             lines = []
@@ -335,102 +344,97 @@ def cmd_study() -> bool:
                     if line:
                         lines.append(line)
                     elif not lines:
-                        console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
+                        console.print("[yellow]Explain yourself, or 'skip'.[/yellow]")
             except (EOFError, KeyboardInterrupt):
                 console.print("\n[dim]Session ended.[/dim]")
                 return True
             
             _flush_stdin()
-            explanation = " ".join(lines).strip()
+            answer = " ".join(lines).strip()
             
-            # Handle commands
-            if explanation.lower() in ("q", "quit", "/quit", "exit"):
+            if answer.lower() in ("q", "quit", "/quit", "exit"):
                 console.print("[dim]Session ended.[/dim]")
                 return True
             
-            if explanation.lower() in ("skip", "s", "/skip"):
+            if answer.lower() in ("skip", "s", "/skip"):
                 storage.skip_concept(due["id"])
-                console.print("[yellow]⏭ Skipped — won't appear again[/yellow]")
+                console.print("[yellow]Skipped[/yellow]")
+                skipped = True
                 break
             
-            if not explanation:
-                console.print("[yellow]Say something, or type 'skip' to skip.[/yellow]")
+            if not answer:
                 continue
             
-            # Check if user provided an image path - extract text via OCR
-            if _is_image_path(explanation):
-                with _spinner("Extracting text from image..."):
-                    from .ocr import extract_text_from_image, check_relevance
-                    ocr_result = extract_text_from_image(explanation)
-                
-                if "error" in ocr_result:
-                    console.print(f"[red]Error: {ocr_result['error']}[/red]")
+            # OCR support
+            if _is_image_path(answer):
+                with _spinner("Reading image..."):
+                    from .ocr import extract_text_from_image
+                    ocr = extract_text_from_image(answer)
+                if "error" in ocr or not ocr["text"].strip():
+                    console.print("[yellow]Couldn't read image.[/yellow]")
                     continue
-                
-                if not ocr_result["text"].strip():
-                    console.print("[yellow]No text found in image. Try again.[/yellow]")
-                    continue
-                
-                extracted_text = ocr_result["text"]
-                
-                # Check if extracted text is relevant to the concept
-                with _spinner("Checking relevance..."):
-                    relevance = check_relevance(extracted_text, due["name"], due["source_quote"])
-                
-                if not relevance["is_relevant"]:
-                    console.print(f"[red]Error: Image content not related to '{due['name']}'[/red]")
-                    console.print(f"[dim]Detected: \"{extracted_text[:80]}...\"[/dim]")
-                    console.print("[yellow]Please provide an explanation related to the topic.[/yellow]")
-                    continue
-                
-                explanation = extracted_text
-                console.print(f"[dim]📷 Extracted: \"{explanation[:100]}{'...' if len(explanation) > 100 else ''}\"[/dim]")
+                answer = ocr["text"]
+                console.print(f"[dim]OCR: \"{answer[:80]}...\"[/dim]")
             
-            all_explanations.append(explanation)
+            # Process
+            with _spinner(""):
+                result = duel.process(answer)
             
-            # Get coach response
-            with _spinner("Analyzing..."):
-                result = coach.respond(explanation)
-            
-            console.print()
-            
-            if result["type"] == "followup":
-                # Show follow-up challenge
-                console.print(f"[yellow]{result['message']}[/yellow]")
-            else:
-                # Final result
-                _show_coach_result(result)
-                
-                # Store
-                storage.add_explanation(
-                    concept_id=due["id"],
-                    text=" | ".join(all_explanations),
-                    score=result["score"],
-                    covered=", ".join(result["strengths"]) if result["strengths"] else None,
-                    missed=", ".join(result["holes"][:3]) if result["holes"] else None,
-                    feedback=result["message"]
-                )
-                
-                # Update scheduler
-                sched_result = scheduler.update_after_review(due["id"], result["score"])
+            if result["type"] == "attack":
+                # Update HUD after processing
                 console.print()
-                console.print(f"[dim]Next review: Next review: {sched_result['next_review']}[/dim]")
+                render_duel_state(duel, console)
+                console.print()
+                render_attack(result["message"], console)
         
-        # Check if skipped (break from inner loop)
-        if explanation.lower() in ("skip", "s", "/skip"):
+        if skipped:
             due = scheduler.get_next_due()
             total_due = len(scheduler.get_all_due()) + studied
             continue
         
-        # Get next concept
+        # REVEAL with HUD
+        reveal = duel.get_reveal()
+        render_reveal(reveal, console)
+        _show_source_help(due, reveal["ground_truth"])
+        
+        # Score
+        score = belief_to_score(duel.state)
+        
+        # Save duel memory
+        errors_str = "; ".join(e.description for e in reveal["errors"][:2]) if reveal["errors"] else ""
+        last_attack = reveal["attacks"][-1] if reveal.get("attacks") else ""
+        storage.save_duel_memory(due["id"], reveal["belief"], errors_str, last_attack)
+        
+        # Save duel data for research
+        try:
+            save_duel_data(duel.state, due["name"])
+        except:
+            pass
+        
+        # Store explanation
+        storage.add_explanation(
+            concept_id=due["id"],
+            text=" | ".join(reveal["evidence"]),
+            score=score,
+            covered=None,
+            missed=errors_str,
+            feedback=reveal["belief"]
+        )
+        
+        # Update scheduler
+        sched_result = scheduler.update_after_review(due["id"], score)
+        console.print()
+        console.print(f"[dim]Next review: {sched_result['next_review']}[/dim]")
+        
+        # Next
         due = scheduler.get_next_due()
         
         if due:
             remaining = len(scheduler.get_all_due())
             console.print()
             try:
-                cont = console.input(f"[dim]({remaining} more) Press Enter to continue, 'q' to quit: [/dim]").strip()
-                if cont.lower() in ("q", "quit", "n", "no"):
+                cont = console.input(f"[dim]({remaining} more) Enter to continue, 'q' to quit: [/dim]").strip()
+                if cont.lower() in ("q", "quit", "n"):
                     console.print("[dim]Session ended.[/dim]")
                     return True
             except (EOFError, KeyboardInterrupt):
@@ -438,45 +442,115 @@ def cmd_study() -> bool:
                 return True
     
     console.print()
-    console.print(f"[green]OK[/green] Done! Reviewed {studied} concepts.")
+    console.print(f"[green]Done.[/green] Dueled {studied} concepts.")
     return True
 
 
-def _show_coach_result(result: dict):
-    """Display Socratic coach final result."""
-    score = result["score"]
+def _show_reveal(reveal: dict, due: dict = None):
+    """Display the final reveal - claims, belief trajectory, typed errors."""
+    console.print()
+    console.print("[bold]--- REVEAL ---[/bold]")
     
-    # Visual score bar
-    stars = "█" * score + "░" * (5 - score)
-    labels = {1: "Needs Work", 2: "Getting There", 3: "Good", 4: "Great", 5: "Perfect"}
-    label = labels.get(score, "")
+    # A) Show claims
+    claims = reveal.get("claims", [])
+    if claims:
+        console.print()
+        console.print("[bold]Ground Truth Claims:[/bold]")
+        for c in claims:
+            console.print(f"  [{c.index+1}] [dim]{c.claim_type}:[/dim] {c.statement}")
     
-    if score >= 4:
-        console.print(f"[green]{stars}[/green] [bold green]{label}[/bold green]")
-    elif score >= 3:
-        console.print(f"[yellow]{stars}[/yellow] [bold yellow]{label}[/bold yellow]")
+    # B) Show belief trajectory
+    history = reveal.get("history", [])
+    if history:
+        console.print()
+        console.print("[bold]Belief Trajectory:[/bold]")
+        for i, snap in enumerate(history):
+            label = "Initial" if snap.trigger == "initial" else f"After Q{i}"
+            console.print(f"  [dim]{label}:[/dim]")
+            console.print(f"    \"{snap.belief}\"")
+            if snap.errors_at_time:
+                for e in snap.errors_at_time[:2]:
+                    sev_color = "red" if e.severity == 3 else "yellow" if e.severity == 2 else "dim"
+                    console.print(f"    [{sev_color}]-> {e.type}: violates claim {e.claim_index+1}[/{sev_color}]")
+    elif reveal.get("belief"):
+        console.print()
+        console.print("[dim]Final belief:[/dim]")
+        console.print(f"  \"{reveal['belief']}\"")
+    
+    # C) Show final errors with claim references
+    errors = reveal.get("errors", [])
+    if errors:
+        console.print()
+        console.print("[red]Errors:[/red]")
+        for e in errors:
+            sev = {1: "minor", 2: "significant", 3: "critical"}.get(e.severity, "")
+            console.print(f"  [red]Error:[/red] {e.type} [dim]({sev})[/dim]")
+            console.print(f"  [red]Violates:[/red] Claim {e.claim_index+1} - \"{e.violated_claim}\"")
+            console.print(f"  [red]Because:[/red] {e.description}")
+            console.print()
     else:
-        console.print(f"[red]{stars}[/red] [bold red]{label}[/bold red]")
+        console.print()
+        console.print("[green]All claims satisfied.[/green]")
     
-    # Feedback
-    if result.get("message"):
-        console.print(f"[dim]{result['message']}[/dim]")
+    # YouTube timestamp help
+    if errors and due:
+        _show_source_help(due, reveal["ground_truth"])
     
-    # Strengths
-    if result.get("strengths"):
-        console.print("[green]Solid understanding:[/green]")
-        for s in result["strengths"][:2]:
-            # Truncate long strengths
-            s_short = s[:150] + "..." if len(s) > 150 else s
-            console.print(f"  [green]•[/green] {s_short}")
+    # Score bar
+    max_sev = max((e.severity for e in errors), default=0) if errors else 0
+    console.print()
+    bars = {0: ("[green]█████[/green]", "Solid"), 1: ("[green]████░[/green]", "Minor gaps"),
+            2: ("[yellow]███░░[/yellow]", "Significant gaps"), 3: ("[red]█░░░░[/red]", "Critical errors")}
+    bar, label = bars.get(max_sev, bars[3])
+    console.print(f"{bar} [bold]{label}[/bold]")
+
+
+def _show_source_help(due: dict, source_quote: str):
+    """Show timestamp link and visual content for failed concepts (YouTube only)."""
+    source = storage.get_source(due["source_id"])
+    if not source or source["source_type"] != "youtube":
+        return
     
-    # Holes found
-    if result.get("holes"):
-        console.print("[red]Gaps exposed:[/red]")
-        for h in result["holes"][:3]:
-            # Truncate long holes
-            h_short = h[:150] + "..." if len(h) > 150 else h
-            console.print(f"  [red]•[/red] {h_short}")
+    # Get segments
+    segments = None
+    if source.get("segments"):
+        import json
+        try:
+            segments = json.loads(source["segments"])
+        except:
+            pass
+    
+    if not segments:
+        return
+    
+    # Find timestamp for this concept
+    from .tools.youtube import find_timestamp_for_text, get_video_link_at_time, extract_frame_at_timestamp
+    
+    timestamp = find_timestamp_for_text(segments, source_quote)
+    if timestamp is None:
+        return
+    
+    # Format timestamp as MM:SS
+    mins = int(timestamp) // 60
+    secs = int(timestamp) % 60
+    time_str = f"{mins}:{secs:02d}"
+    
+    # Show link to video at timestamp
+    link = get_video_link_at_time(source["url"], timestamp)
+    console.print()
+    console.print(f"[dim]Review at[/dim] [yellow]{time_str}[/yellow][dim]:[/dim] [cyan]{link}[/cyan]")
+    
+    # Try to extract visual content at that timestamp
+    with _spinner("Extracting visual content..."):
+        visual = extract_frame_at_timestamp(source["url"], timestamp)
+    
+    if visual:
+        console.print()
+        console.print("[dim]What was shown on screen:[/dim]")
+        visual_short = visual[:300] + "..." if len(visual) > 300 else visual
+        console.print(f"  [white]{visual_short}[/white]")
+
+
 
 
 def _show_evaluation_result(result: dict):
@@ -695,8 +769,8 @@ def cmd_config() -> bool:
     console.print(f"  Groq model: [dim]{config.GROQ_MODEL}[/dim]")
     console.print(f"  Gemini model: [dim]{config.GEMINI_MODEL}[/dim]")
     console.print()
-    console.print(f"  GROQ_API_KEY: [green]set[/green]" if os.environ.get("GROQ_API_KEY") else "  GROQ_API_KEY: [red]not set[/red]")
-    console.print(f"  GEMINI_API_KEY: [green]set[/green]" if os.environ.get("GEMINI_API_KEY") else "  GEMINI_API_KEY: [dim]not set (optional)[/dim]")
+    console.print("  GROQ_API_KEY: [green]set[/green]" if os.environ.get("GROQ_API_KEY") else "  GROQ_API_KEY: [red]not set[/red]")
+    console.print("  GEMINI_API_KEY: [green]set[/green]" if os.environ.get("GEMINI_API_KEY") else "  GEMINI_API_KEY: [dim]not set (optional)[/dim]")
     return True
 
 
@@ -763,7 +837,7 @@ def handle_input(user_input: str) -> bool:
         return cmd_add(user_input)
     
     # Unknown input
-    console.print(f"[dim]Unknown input. Type /help for commands.[/dim]")
+    console.print("[dim]Unknown input. Type /help for commands.[/dim]")
     return True
 
 
@@ -802,6 +876,7 @@ def interactive_mode():
 def cli(
     prompt: Optional[str] = typer.Argument(None, help="Command or URL to process"),
     print_mode: bool = typer.Option(False, "-p", "--print", help="Print output and exit (non-interactive)"),
+    gentle: bool = typer.Option(False, "-g", "--gentle", help="Gentle UI mode (less aggressive feedback)"),
     version: bool = typer.Option(False, "-v", "--version", help="Show version"),
 ):
     """
@@ -819,6 +894,11 @@ def cli(
     # Check API keys
     if not _check_api_keys():
         raise typer.Exit(1)
+    
+    # Set gentle mode
+    if gentle:
+        from .hud import set_gentle_mode
+        set_gentle_mode(True)
     
     if print_mode and prompt:
         # Non-interactive mode

@@ -2,7 +2,7 @@
 
 import sqlite3
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 from contextlib import contextmanager
 
@@ -28,6 +28,7 @@ def init_db(db_path: Path = None) -> None:
                 title TEXT NOT NULL,
                 source_type TEXT NOT NULL,
                 raw_content TEXT NOT NULL,
+                segments TEXT,
                 created_at TEXT NOT NULL
             );
             
@@ -66,11 +67,40 @@ def init_db(db_path: Path = None) -> None:
                 FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE
             );
             
+            CREATE TABLE IF NOT EXISTS duel_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                concept_id INTEGER UNIQUE NOT NULL,
+                last_belief TEXT,
+                last_errors TEXT,
+                last_attack TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE
+            );
+            
             CREATE INDEX IF NOT EXISTS idx_progress_due ON progress(due_date);
             CREATE INDEX IF NOT EXISTS idx_concepts_source ON concepts(source_id);
             CREATE INDEX IF NOT EXISTS idx_concepts_skipped ON concepts(skipped);
         """)
         conn.execute("PRAGMA foreign_keys = ON")
+        
+        # Migrations
+        cursor = conn.execute("PRAGMA table_info(sources)")
+        cols = [row[1] for row in cursor.fetchall()]
+        if "segments" not in cols:
+            conn.execute("ALTER TABLE sources ADD COLUMN segments TEXT")
+        
+        # Add duel_memory table if missing
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='duel_memory'")
+        if not cursor.fetchone():
+            conn.execute("""CREATE TABLE IF NOT EXISTS duel_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                concept_id INTEGER UNIQUE NOT NULL,
+                last_belief TEXT,
+                last_errors TEXT,
+                last_attack TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE
+            )""")
 
 
 @contextmanager
@@ -92,12 +122,12 @@ def get_db(db_path: Path = None):
 
 # ============ SOURCES ============
 
-def add_source(url: str, title: str, source_type: str, raw_content: str) -> int:
+def add_source(url: str, title: str, source_type: str, raw_content: str, segments: str = None) -> int:
     """Add a source. Returns source ID."""
     with get_db() as conn:
         cursor = conn.execute(
-            "INSERT INTO sources (url, title, source_type, raw_content, created_at) VALUES (?, ?, ?, ?, ?)",
-            (url, title, source_type, raw_content, _utcnow().isoformat())
+            "INSERT INTO sources (url, title, source_type, raw_content, segments, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (url, title, source_type, raw_content, segments, _utcnow().isoformat())
         )
         return cursor.lastrowid
 
@@ -300,3 +330,35 @@ def get_stats() -> dict:
             "avg_score": round(avg_score, 1) if avg_score else 0,
             "mastered": mastered,
         }
+
+
+# ============ DUEL MEMORY ============
+
+def save_duel_memory(concept_id: int, belief: str, errors: str, attack: str) -> None:
+    """Save last duel state for a concept."""
+    with get_db() as conn:
+        conn.execute("""
+            INSERT INTO duel_memory (concept_id, last_belief, last_errors, last_attack, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(concept_id) DO UPDATE SET
+                last_belief = excluded.last_belief,
+                last_errors = excluded.last_errors,
+                last_attack = excluded.last_attack,
+                updated_at = excluded.updated_at
+        """, (concept_id, belief, errors, attack, _utcnow().isoformat()))
+
+
+def get_duel_memory(concept_id: int) -> Optional[dict]:
+    """Get last duel state for a concept."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT last_belief, last_errors, last_attack FROM duel_memory WHERE concept_id = ?",
+            (concept_id,)
+        ).fetchone()
+        if row:
+            return {
+                "last_belief": row[0],
+                "last_errors": row[1],
+                "last_attack": row[2]
+            }
+        return None
