@@ -95,7 +95,7 @@ export default function SpacedRepetitionPage() {
         </ul>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next:</p>
         <Link href="/docs/commands" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           CLI Commands <ArrowRight className="w-4 h-4" />

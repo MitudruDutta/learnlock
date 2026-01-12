@@ -3,25 +3,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
+  --background: #18181b;
   --foreground: #fafafa;
   --primary: #a3a3a3;
-  --primary-foreground: #0a0a0a;
-  --secondary: #171717;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
   --secondary-foreground: #fafafa;
-  --muted: #171717;
-  --muted-foreground: #a3a3a3;
-  --accent: #262626;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #3f3f46;
   --accent-foreground: #fafafa;
   --destructive: #7f1d1d;
   --destructive-foreground: #fafafa;
-  --border: #262626;
-  --input: #262626;
-  --ring: #d4d4d4;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #d4d4d8;
   --radius: 0.75rem;
-  --card: #0f0f0f;
+  --card: #1f1f23;
   --card-foreground: #fafafa;
-  --popover: #0f0f0f;
+  --popover: #1f1f23;
   --popover-foreground: #fafafa;
 }
 
@@ -133,13 +133,13 @@ body {
 
 .prose pre {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  background-color: #18181b;
+  background-color: #27272a;
   color: #fafafa;
   padding: 1rem 1.25rem;
   border-radius: 0.75rem;
   overflow-x: auto;
   margin: 1.5rem 0;
-  border: 1px solid #262626;
+  border: 1px solid #3f3f46;
   font-size: 0.875rem;
   line-height: 1.7;
 }
@@ -245,10 +245,10 @@ body {
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
   color: var(--muted-foreground);
-  background: #262626;
+  background: #27272a;
   padding: 0.5rem 1rem;
   border-radius: 0.75rem 0.75rem 0 0;
-  border: 1px solid #262626;
+  border: 1px solid #3f3f46;
   border-bottom: none;
   display: inline-block;
 }
@@ -341,4 +341,16 @@ body {
   table th, table td {
     padding: 0.5rem 0.75rem;
   }
+}
+
+
+/* Infinite scroll animation */
+@keyframes scroll {
+  to {
+    transform: translate(calc(-50% - 0.5rem));
+  }
+}
+
+.animate-scroll {
+  animation: scroll var(--animation-duration, 40s) var(--animation-direction, forwards) linear infinite;
 }

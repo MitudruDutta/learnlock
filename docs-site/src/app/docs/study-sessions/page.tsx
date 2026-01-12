@@ -11,7 +11,7 @@ export default function StudySessionsPage() {
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Starting a Session</h2>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
 # or just press Enter
 
 Study Session - 5 concepts to review
@@ -46,18 +46,18 @@ Adversarial mode: I will challenge your understanding`}</code></pre>
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Using Images (OCR)</h2>
         <p className="text-sm sm:text-base text-muted-foreground">Answer with a photo of handwritten notes:</p>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`> /path/to/notes.jpg
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`> /path/to/notes.jpg
 
 Extracting text from image...
 Extracted: "Backpropagation uses chain rule..."`}</code></pre>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-          Requires: <code className="bg-card px-1 rounded">pip install learnlock[ocr]</code>
+          Requires: <code className="bg-[#1f1f23] px-1 rounded">pip install learnlock[ocr]</code>
         </p>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Understanding Scores</h2>
-        <div className="p-3 sm:p-4 bg-card rounded-lg font-mono text-xs sm:text-sm space-y-1">
+        <div className="p-3 sm:p-4 bg-[#1f1f23] border border-[#3f3f46] rounded-lg font-mono text-xs sm:text-sm space-y-1">
           <p><span className="text-cyan-400">|||||</span> Perfect (5) - No holes found</p>
           <p><span className="text-green-400">||||.</span> Great (4) - Minor gaps</p>
           <p><span className="text-yellow-400">|||..</span> Good (3) - Some gaps</p>
@@ -66,7 +66,7 @@ Extracted: "Backpropagation uses chain rule..."`}</code></pre>
         </div>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next:</p>
         <Link href="/docs/configuration" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           Configuration <ArrowRight className="w-4 h-4" />

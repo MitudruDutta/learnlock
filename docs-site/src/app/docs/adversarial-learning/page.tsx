@@ -24,42 +24,42 @@ export default function AdversarialLearningPage() {
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">The Pipeline</h2>
         <div className="space-y-3 sm:space-y-4">
-          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-foreground text-background text-sm sm:text-base font-bold shrink-0">1</span>
             <div>
               <h3 className="font-medium text-sm sm:text-base">Add</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">YouTube, article, PDF, or GitHub URL</p>
             </div>
           </div>
-          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-foreground text-background text-sm sm:text-base font-bold shrink-0">2</span>
             <div>
               <h3 className="font-medium text-sm sm:text-base">Extract</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">LLM identifies 8-12 key concepts with challenge questions</p>
             </div>
           </div>
-          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-foreground text-background text-sm sm:text-base font-bold shrink-0">3</span>
             <div>
               <h3 className="font-medium text-sm sm:text-base">Challenge</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">You explain, it finds holes in your understanding</p>
             </div>
           </div>
-          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-foreground text-background text-sm sm:text-base font-bold shrink-0">4</span>
             <div>
               <h3 className="font-medium text-sm sm:text-base">Probe</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">Up to 3 rounds of Socratic follow-ups</p>
             </div>
           </div>
-          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-foreground text-background text-sm sm:text-base font-bold shrink-0">5</span>
             <div>
               <h3 className="font-medium text-sm sm:text-base">Score</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">1-5 based on gaps exposed, not what you got right</p>
             </div>
           </div>
-          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <span className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-foreground text-background text-sm sm:text-base font-bold shrink-0">6</span>
             <div>
               <h3 className="font-medium text-sm sm:text-base">Schedule</h3>
@@ -108,7 +108,7 @@ export default function AdversarialLearningPage() {
         </div>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Deep dive:</p>
         <Link href="/docs/socratic-dialogue" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           Socratic Dialogue System <ArrowRight className="w-4 h-4" />

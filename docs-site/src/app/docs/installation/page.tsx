@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { CodeBlock } from "@/components/ui/code-block";
 
 export default function InstallationPage() {
   return (
@@ -13,19 +14,22 @@ export default function InstallationPage() {
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">pip (Recommended)</h2>
-        <pre className="bg-muted p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>pip install learnlock</code></pre>
+        <CodeBlock code="pip install learnlock" />
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">curl (macOS/Linux)</h2>
-        <pre className="bg-muted p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code className="break-all sm:break-normal">curl -fsSL https://raw.githubusercontent.com/MitudruDutta/learnlock/main/install.sh | bash</code></pre>
+        <CodeBlock code="curl -fsSL https://raw.githubusercontent.com/MitudruDutta/learnlock/main/install.sh | bash" />
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">From Source</h2>
-        <pre className="bg-muted p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`git clone https://github.com/MitudruDutta/learnlock.git
+        <CodeBlock 
+          language="bash"
+          code={`git clone https://github.com/MitudruDutta/learnlock.git
 cd learnlock
-pip install -e .`}</code></pre>
+pip install -e .`} 
+        />
       </section>
 
       <section className="space-y-3 sm:space-y-4">
@@ -48,20 +52,26 @@ pip install -e .`}</code></pre>
 
         <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">Set Environment Variables</h3>
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">macOS/Linux:</p>
-        <pre className="bg-muted p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`export GROQ_API_KEY=your_groq_key
-export GEMINI_API_KEY=your_gemini_key`}</code></pre>
+        <CodeBlock 
+          language="bash"
+          code={`export GROQ_API_KEY=your_groq_key
+export GEMINI_API_KEY=your_gemini_key`} 
+        />
 
         <p className="text-xs sm:text-sm text-muted-foreground mb-2 mt-3 sm:mt-4">Windows (PowerShell):</p>
-        <pre className="bg-muted p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`$env:GROQ_API_KEY="your_groq_key"
-$env:GEMINI_API_KEY="your_gemini_key"`}</code></pre>
+        <CodeBlock 
+          language="powershell"
+          code={`$env:GROQ_API_KEY="your_groq_key"
+$env:GEMINI_API_KEY="your_gemini_key"`} 
+        />
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Verify Installation</h2>
-        <pre className="bg-muted p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>learnlock --version</code></pre>
+        <CodeBlock code="learnlock --version" />
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next step:</p>
         <Link href="/docs/quickstart" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           Quick Start Guide <ArrowRight className="w-4 h-4" />

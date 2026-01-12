@@ -13,6 +13,7 @@ export const docsNav = [
       { title: "Adversarial Learning", href: "/docs/adversarial-learning" },
       { title: "Socratic Dialogue", href: "/docs/socratic-dialogue" },
       { title: "Spaced Repetition", href: "/docs/spaced-repetition" },
+      { title: "Duel Engine", href: "/docs/duel-engine" },
     ],
   },
   {

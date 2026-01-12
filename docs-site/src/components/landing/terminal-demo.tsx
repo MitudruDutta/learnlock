@@ -18,35 +18,91 @@ const STEPS = [
     type: "output", 
     delay: 200 
   },
-  { text: "/add https://youtu.be/dQw4w9WgXcQ", type: "input", delay: 1000 },
+  { text: "/add https://youtu.be/kCc8FmEb1nY", type: "input", delay: 1000 },
   { 
-    text: `[cyan]•[/cyan] Fetching content...
-[cyan]•[/cyan] Generating title...
+    text: `[cyan]•[/cyan] Fetching transcript...
 [cyan]•[/cyan] Extracting concepts...
-[green]OK[/green] Added: Rick Astley - Never Gonna Give You Up
-[green]OK[/green] Added 3 concepts:
-  [dim]•[/dim] Rickrolling
-  [dim]•[/dim] Bait-and-switch
-  [dim]•[/dim] Internet Meme History`, 
+[cyan]•[/cyan] Generating claims...
+[green]OK[/green] Added: GPT from Scratch - Andrej Karpathy
+[green]OK[/green] 8 concepts with 24 falsifiable claims`, 
     type: "output", 
     delay: 800 
   },
   { text: "/study", type: "input", delay: 1000 },
   { 
     text: `
-[bold cyan]Study Session[/bold cyan] — 1 concepts to review
+[bold cyan]═══ DUEL ENGINE ═══[/bold cyan]
 
-[bold]━━━ 1/1: Rickrolling ━━━[/bold]
-[dim]from Rick Astley - Never Gonna Give You Up[/dim]
+[bold]Concept:[/bold] Self-Attention Mechanism
+[dim]from GPT from Scratch[/dim]
 
-[cyan]Challenge:[/cyan] Explain the psychological mechanism that makes this bait-and-switch effective.`,
+[cyan]┌─ CLAIMS (3) ─────────────────────────────┐[/cyan]
+[dim]│[/dim] Computes weighted sum of value vectors
+[dim]│[/dim] Weights derived from query-key dot product
+[dim]│[/dim] Scaled by √d_k to prevent gradient issues
+[cyan]└──────────────────────────────────────────┘[/cyan]
+
+[yellow]Challenge:[/yellow] Explain how self-attention computes its output.`,
     type: "output", 
     delay: 800 
   },
-  { text: "It's just a funny prank where you trick people.", type: "input", delay: 1500 },
+  { text: "It looks at all the words and picks the important ones.", type: "input", delay: 1500 },
   { 
-    text: `[yellow]That's a surface-level observation.[/yellow]
-WHY is it effective? What specific expectation is being violated?`, 
+    text: `[cyan]┌─ BELIEF MODEL ───────────────────────────┐[/cyan]
+[dim]│[/dim] [yellow]⚠[/yellow] Vague: "picks important ones"
+[dim]│[/dim] [red]✗[/red] Missing: weighted sum mechanism
+[dim]│[/dim] [red]✗[/red] Missing: query-key computation
+[cyan]└──────────────────────────────────────────┘[/cyan]
+
+[yellow]Turn 1/3[/yellow] — You said it "picks" words. [bold]HOW[/bold] does it decide which are important? What mathematical operation produces the weights?`, 
+    type: "output", 
+    delay: 500 
+  },
+  { text: "It uses dot product between queries and keys to get attention scores.", type: "input", delay: 1500 },
+  { 
+    text: `[cyan]┌─ BELIEF MODEL ───────────────────────────┐[/cyan]
+[dim]│[/dim] [green]✓[/green] Query-key dot product
+[dim]│[/dim] [red]✗[/red] Missing: weighted sum of values
+[dim]│[/dim] [red]✗[/red] Missing: scaling factor
+[cyan]└──────────────────────────────────────────┘[/cyan]
+
+[yellow]Turn 2/3[/yellow] — Good. Now what happens AFTER you have the attention scores?`, 
+    type: "output", 
+    delay: 500 
+  },
+  { text: "Softmax the scores, then multiply with value vectors to get weighted sum.", type: "input", delay: 1500 },
+  { 
+    text: `[cyan]┌─ BELIEF MODEL ───────────────────────────┐[/cyan]
+[dim]│[/dim] [green]✓[/green] Query-key dot product
+[dim]│[/dim] [green]✓[/green] Weighted sum of values
+[dim]│[/dim] [yellow]⚠[/yellow] Partial: scaling not mentioned
+[cyan]└──────────────────────────────────────────┘[/cyan]
+
+[green]═══ REVEAL ═══[/green]
+
+[bold]Belief Trajectory:[/bold]
+  Turn 1: [red]▁[/red] vague, no mechanism
+  Turn 2: [yellow]▃[/yellow] partial, got Q·K
+  Turn 3: [green]▆[/green] solid, missing scale
+
+[bold]Claims Satisfied:[/bold] 2/3
+[bold]Score:[/bold] [green]||||[/green][dim].[/dim] 4/5 — Great
+
+[dim]Scaling by √d_k prevents softmax saturation. Review in 4 days.[/dim]`, 
+    type: "output", 
+    delay: 500 
+  },
+  { text: "/stats", type: "input", delay: 1000 },
+  { 
+    text: `[cyan]╭────────────────────────────╮[/cyan]
+[cyan]│[/cyan]      [bold]Your Progress[/bold]         [cyan]│[/cyan]
+[cyan]├────────────────────────────┤[/cyan]
+[cyan]│[/cyan] Sources         [bold]1[/bold]          [cyan]│[/cyan]
+[cyan]│[/cyan] Concepts        [bold]8[/bold]          [cyan]│[/cyan]
+[cyan]│[/cyan] Due now         [bold]7[/bold]          [cyan]│[/cyan]
+[cyan]│[/cyan] Avg score       [bold]4.0/5[/bold]      [cyan]│[/cyan]
+[cyan]│[/cyan] Mastered        [bold]1[/bold]          [cyan]│[/cyan]
+[cyan]╰────────────────────────────╯[/cyan]`, 
     type: "output", 
     delay: 500 
   }
@@ -119,6 +175,7 @@ export function TerminalDemo() {
                   .replace(/\[cyan\](.*?)\[\/cyan\]/g, '<span class="text-cyan-400">$1</span>')
                   .replace(/\[green\](.*?)\[\/green\]/g, '<span class="text-green-400">$1</span>')
                   .replace(/\[yellow\](.*?)\[\/yellow\]/g, '<span class="text-yellow-400">$1</span>')
+                  .replace(/\[red\](.*?)\[\/red\]/g, '<span class="text-red-400">$1</span>')
                   .replace(/\[bold\](.*?)\[\/bold\]/g, '<span class="font-bold text-white">$1</span>')
                   .replace(/\[bold cyan\](.*?)\[\/bold cyan\]/g, '<span class="font-bold text-cyan-400">$1</span>')
                   .replace(/\[dim\](.*?)\[\/dim\]/g, '<span class="text-white/40">$1</span>')

@@ -17,6 +17,7 @@ import {
   Eye,
   Terminal,
   Settings,
+  Swords,
 } from "lucide-react";
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -26,6 +27,7 @@ const iconMap: Record<string, React.ReactNode> = {
   "Adversarial Learning": <Brain className="h-4 w-4" />,
   "Socratic Dialogue": <MessageSquare className="h-4 w-4" />,
   "Spaced Repetition": <Clock className="h-4 w-4" />,
+  "Duel Engine": <Swords className="h-4 w-4" />,
   "Study Sessions": <Play className="h-4 w-4" />,
   "Adding Content": <Plus className="h-4 w-4" />,
   "OCR & Images": <Eye className="h-4 w-4" />,

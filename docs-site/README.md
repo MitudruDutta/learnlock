@@ -1,89 +1,68 @@
-# LearnLock Documentation Site
+# LearnLock Docs
 
-The official documentation website for **LearnLock** - the CLI tool that uses adversarial Socratic dialogue to expose gaps in your understanding.
+Documentation site for LearnLock. Built with Next.js 16, Tailwind v4, Framer Motion.
 
-![Landing Page](public/assets/landing-hero.png)
+## Stack
 
-## 🚀 Overview
+- Next.js 16 (App Router)
+- Tailwind CSS 4
+- Framer Motion
+- Radix UI
+- Lucide Icons
 
-This site is built with **Next.js 16**, **Tailwind CSS v4**, and **Framer Motion**. It features a "brutal", terminal-inspired aesthetic designed to match the CLI tool's identity.
+## Run
 
-### Key Features
-- **Terminal Demo:** An interactive, typing-effect CLI simulation on the landing page.
-- **Scroll Animations:** Immersive `ContainerScroll` and `CardSpotlight` effects.
-- **Responsive Design:** Fully mobile-optimized with a custom `Sheet` sidebar.
-- **Dark Mode:** Native dark-mode-first design system.
+```bash
+npm install
+npm run dev
+```
 
-![Features Grid](public/assets/features-grid.png)
-
-## 🛠️ Tech Stack
-
-- **Framework:** [Next.js 16](https://nextjs.org/) (App Router)
-- **Styling:** [Tailwind CSS 4](https://tailwindcss.com/)
-- **Animation:** [Framer Motion](https://www.framer.com/motion/)
-- **Components:** [Radix UI](https://www.radix-ui.com/) & Custom "Brutal" Blocks
-- **Icons:** [Lucide React](https://lucide.dev/)
-
-## 🏃‍♂️ Getting Started
-
-### Prerequisites
-- Node.js 18+
-- npm or pnpm
-
-### Installation
-
-1. Navigate to the directory:
-   ```bash
-   cd docs-site
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## 🏗️ Building for Production
-
-To create an optimized production build (suitable for Vercel/Netlify):
+## Build
 
 ```bash
 npm run build
 ```
 
-This generates a `.next` folder with the compiled application.
-
-## 📂 Project Structure
+## Structure
 
 ```
-docs-site/
-├── public/             # Static assets (images, icons)
-├── src/
-│   ├── app/            # Next.js App Router pages
-│   │   ├── docs/       # Documentation markdown/pages
-│   │   ├── layout.tsx  # Root layout with Navbar
-│   │   └── page.tsx    # Landing page
-│   ├── components/
-│   │   ├── blocks/     # High-level UI sections (Hero, Navbar)
-│   │   ├── landing/    # Landing page specific (TerminalDemo)
-│   │   └── ui/         # Reusable atoms (Buttons, Inputs, etc.)
-│   └── lib/            # Utilities and navigation config
-└── tailwind.config.ts  # Style configuration
+src/
+├── app/
+│   ├── docs/           # Doc pages
+│   └── page.tsx        # Landing
+├── components/
+│   ├── blocks/         # Navbar, Hero
+│   ├── landing/        # TerminalDemo
+│   └── ui/             # Buttons, Cards, etc.
+└── lib/                # Utils, nav config
 ```
 
-## 🎨 Design Philosophy
+## Features
 
-The site follows a strict "Terminal Brutalism" guide:
-- **Colors:** Deep blacks (`#0a0a0a`), muted grays (`#27272a`), and neon accents (Cyan/Green).
-- **Typography:** Clean Sans-serif for UI, Monospace for code/terminal elements.
-- **Vibe:** "Stop consuming. Start retaining." - The UI is sharp, direct, and focused.
+- Glassmorphism navbar (sticky, backdrop-blur)
+- Interactive terminal demo (full duel flow)
+- Infinite scrolling feature cards
+- Lamp effect hero
+- PixelCanvas hover effects
+- Zinc palette (#18181b base)
+- Mobile responsive
+
+## Pages
+
+- `/` — Landing
+- `/docs` — Introduction
+- `/docs/installation`
+- `/docs/quickstart`
+- `/docs/adversarial-learning`
+- `/docs/socratic-dialogue`
+- `/docs/spaced-repetition`
+- `/docs/duel-engine`
+- `/docs/commands`
+- `/docs/adding-content`
+- `/docs/study-sessions`
+- `/docs/ocr`
+- `/docs/configuration`
 
 ---
 
-[Visit the Repository](https://github.com/MitudruDutta/learnlock)
+[learnlock.vercel.app](https://learnlock.vercel.app)

@@ -11,13 +11,13 @@ export default function QuickstartPage() {
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Step 1: Launch LearnLock</h2>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>learnlock</code></pre>
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>learnlock</code></pre>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Step 2: Add Content</h2>
         <p className="text-sm sm:text-base text-muted-foreground">Paste any URL. LearnLock auto-detects the type:</p>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> https://youtube.com/watch?v=...
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> https://youtube.com/watch?v=...
 
 ✓ Neural Networks Explained
 ✓ Added 10 concepts`}</code></pre>
@@ -26,7 +26,7 @@ export default function QuickstartPage() {
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Step 3: Start Studying</h2>
         <p className="text-sm sm:text-base text-muted-foreground">Press Enter or type /study:</p>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
 
 ━━━ 1/10: Backpropagation ━━━
 Challenge: How does backpropagation update weights?
@@ -73,7 +73,7 @@ Next review: in 6 days`}</code></pre>
         </div>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Learn more:</p>
         <Link href="/docs/adversarial-learning" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           How Adversarial Learning Works <ArrowRight className="w-4 h-4" />

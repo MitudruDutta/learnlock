@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -68,7 +70,7 @@ export default function CommandsPage() {
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">/add</h2>
         <p className="text-sm sm:text-base text-muted-foreground">Add content from URL or local file:</p>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`# YouTube
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`# YouTube
 learnlock> /add https://youtube.com/watch?v=...
 
 # Article
@@ -84,18 +86,18 @@ learnlock> /add /path/to/document.pdf`}</code></pre>
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">/study</h2>
         <p className="text-sm sm:text-base text-muted-foreground">Start an adversarial study session:</p>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
 
 Study Session — 5 concepts to review
 Type 'skip' to skip, 'q' to quit`}</code></pre>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-          During study: type <code className="bg-card px-1 rounded">skip</code> to skip, <code className="bg-card px-1 rounded">q</code> to quit.
+          During study: type <code className="bg-[#1f1f23] px-1 rounded">skip</code> to skip, <code className="bg-[#1f1f23] px-1 rounded">q</code> to quit.
         </p>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">/stats</h2>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /stats
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /stats
 
 ╭──────────────────────────╮
 │      Your Progress       │
@@ -109,16 +111,43 @@ Type 'skip' to skip, 'q' to quit`}</code></pre>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
+        <h2 className="text-xl sm:text-2xl font-semibold">Flags</h2>
+        <div className="-mx-2 px-2 sm:mx-0 sm:px-0 overflow-x-auto">
+          <table className="w-full text-xs sm:text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left py-2 pr-4 text-muted-foreground">Flag</th>
+                <th className="text-left py-2 text-muted-foreground">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border/50">
+                <td className="py-2 pr-4 font-mono text-cyan-400">--gentle, -g</td>
+                <td className="py-2">Gentle UI mode (minimal, supportive feedback)</td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4 font-mono text-cyan-400">--version, -v</td>
+                <td className="py-2">Show version</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+          Example: <code className="bg-[#1f1f23] px-1 rounded">learnlock --gentle</code> for a less intense experience.
+        </p>
+      </section>
+
+      <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Aliases</h2>
         <ul className="list-disc list-inside space-y-1 text-xs sm:text-sm text-muted-foreground">
-          <li><code className="bg-card px-1 rounded">/list</code> → <code className="bg-card px-1 rounded">/ls</code></li>
-          <li><code className="bg-card px-1 rounded">/help</code> → <code className="bg-card px-1 rounded">/h</code>, <code className="bg-card px-1 rounded">/?</code></li>
-          <li><code className="bg-card px-1 rounded">/clear</code> → <code className="bg-card px-1 rounded">/cls</code></li>
-          <li><code className="bg-card px-1 rounded">/quit</code> → <code className="bg-card px-1 rounded">/exit</code>, <code className="bg-card px-1 rounded">/q</code></li>
+          <li><code className="bg-[#1f1f23] px-1 rounded">/list</code> → <code className="bg-[#1f1f23] px-1 rounded">/ls</code></li>
+          <li><code className="bg-[#1f1f23] px-1 rounded">/help</code> → <code className="bg-[#1f1f23] px-1 rounded">/h</code>, <code className="bg-[#1f1f23] px-1 rounded">/?</code></li>
+          <li><code className="bg-[#1f1f23] px-1 rounded">/clear</code> → <code className="bg-[#1f1f23] px-1 rounded">/cls</code></li>
+          <li><code className="bg-[#1f1f23] px-1 rounded">/quit</code> → <code className="bg-[#1f1f23] px-1 rounded">/exit</code>, <code className="bg-[#1f1f23] px-1 rounded">/q</code></li>
         </ul>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next:</p>
         <Link href="/docs/adding-content" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           Adding Content <ArrowRight className="w-4 h-4" />

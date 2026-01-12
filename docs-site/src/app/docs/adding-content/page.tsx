@@ -12,19 +12,19 @@ export default function AddingContentPage() {
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Supported Sources</h2>
         <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
-          <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <h3 className="text-base sm:text-lg font-medium">YouTube</h3>
             <p className="text-xs sm:text-sm text-muted-foreground">Transcripts via API, Whisper fallback</p>
           </div>
-          <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <h3 className="text-base sm:text-lg font-medium">Articles</h3>
             <p className="text-xs sm:text-sm text-muted-foreground">Web content via Trafilatura</p>
           </div>
-          <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <h3 className="text-base sm:text-lg font-medium">PDFs</h3>
             <p className="text-xs sm:text-sm text-muted-foreground">Local files or URLs via PyMuPDF</p>
           </div>
-          <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+          <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
             <h3 className="text-base sm:text-lg font-medium">GitHub</h3>
             <p className="text-xs sm:text-sm text-muted-foreground">README extraction via API</p>
           </div>
@@ -33,7 +33,7 @@ export default function AddingContentPage() {
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Examples</h2>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`# YouTube video
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`# YouTube video
 learnlock> https://youtube.com/watch?v=...
 
 # Web article
@@ -62,7 +62,7 @@ learnlock> https://arxiv.org/pdf/1234.5678.pdf`}</code></pre>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Duplicate Detection</h2>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> https://youtube.com/watch?v=...
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> https://youtube.com/watch?v=...
 
 Already added: Neural Networks Explained
 10 concepts`}</code></pre>
@@ -78,7 +78,7 @@ Already added: Neural Networks Explained
         </ul>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next:</p>
         <Link href="/docs/ocr" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           OCR Support <ArrowRight className="w-4 h-4" />

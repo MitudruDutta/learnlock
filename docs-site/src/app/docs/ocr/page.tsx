@@ -11,14 +11,14 @@ export default function OCRPage() {
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Installation</h2>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>pip install learnlock[ocr]</code></pre>
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>pip install learnlock[ocr]</code></pre>
         <p className="text-xs sm:text-sm text-muted-foreground">Installs EasyOCR and Pillow.</p>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Usage</h2>
         <p className="text-sm sm:text-base text-muted-foreground">During study, provide an image path instead of typing:</p>
-        <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`Challenge: How does backpropagation update weights?
+        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`Challenge: How does backpropagation update weights?
 
 > /home/user/notes/backprop.jpg
 
@@ -65,7 +65,7 @@ Extracted: "Backpropagation uses chain rule..."
         <div className="space-y-3 sm:space-y-4">
           <div>
             <h3 className="text-base sm:text-lg font-medium">No OCR engine available</h3>
-            <pre className="bg-card p-3 sm:p-4 rounded-lg overflow-x-auto mt-2 text-xs sm:text-sm"><code>pip install learnlock[ocr]</code></pre>
+            <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto mt-2 text-xs sm:text-sm"><code>pip install learnlock[ocr]</code></pre>
           </div>
           <div>
             <h3 className="text-base sm:text-lg font-medium">Image content not related</h3>
@@ -78,7 +78,7 @@ Extracted: "Backpropagation uses chain rule..."
         </div>
       </section>
 
-      <div className="p-3 sm:p-4 rounded-lg border border-border/50 bg-card/50">
+      <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next:</p>
         <Link href="/docs/configuration" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
           Configuration <ArrowRight className="w-4 h-4" />
