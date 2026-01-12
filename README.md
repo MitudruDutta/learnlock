@@ -83,7 +83,7 @@ Clone the repository and install in editable mode.
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐      │
-│   │  Tools   │──▶│   LLM    │──▶│  Duel    │──▶│   HUD    │      │
+│   │  Tools   │──▶ │   LLM    │ ──▶│  Duel    │──▶ │   HUD    │      │
 │   │          │    │          │    │  Engine  │    │          │      │
 │   │ youtube  │    │ extract  │    │          │    │ claims   │      │
 │   │ article  │    │ concepts │    │ belief   │    │ belief   │      │
@@ -93,7 +93,7 @@ Clone the repository and install in editable mode.
 │         │                               │               │           │
 │         ▼                               ▼               ▼           │
 │   ┌──────────┐                    ┌──────────┐    ┌──────────┐      │
-│   │ Storage  │◀──────────────────│Scheduler │    │   CLI    │      │
+│   │ Storage  │◀────────────────── │Scheduler │    │   CLI    │      │
 │   │ SQLite   │                    │  SM-2    │    │          │      │
 │   └──────────┘                    └──────────┘    └──────────┘      │
 │                                                                     │
