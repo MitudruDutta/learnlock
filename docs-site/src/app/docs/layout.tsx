@@ -1,11 +1,15 @@
 import { Sidebar } from "@/components/layout/sidebar";
+import { DocsPageTransition } from "@/components/layout/docs-page-transition";
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
+
   return (
     <div className="flex flex-col min-h-[calc(100vh-3.5rem)] font-[Varela_Round]">
-      {/* Mobile Header with Sidebar Toggle */}
-      <div className="sticky top-14 z-40 flex items-center gap-2 border-b border-border/50 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 px-4 py-2 md:hidden">
-        <span className="text-sm font-medium text-muted-foreground">Documentation</span>
+      {/* Mobile Documentation label only */}
+      <div className="md:hidden px-4 pt-4">
+        <span className="text-sm font-semibold text-muted-foreground">
+          Documentation
+        </span>
       </div>
       
       <div className="flex flex-1">
@@ -20,7 +24,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1 w-full md:ml-55 lg:ml-65 xl:ml-70">
           <div className="py-4 px-4 sm:py-6 sm:px-6 lg:py-8 lg:px-8">
             <div className="mx-auto w-full max-w-3xl lg:max-w-4xl">
-              {children}
+              <DocsPageTransition>{children}</DocsPageTransition>
             </div>
           </div>
         </main>
