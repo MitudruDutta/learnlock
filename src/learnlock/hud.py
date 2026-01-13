@@ -196,8 +196,11 @@ def render_reveal(reveal: dict, console: Console = None):
         3: ("[red]█░░░░[/red]", "CRITICAL ERRORS", "red"),
     }
     bar, label, color = verdicts.get(max_sev, verdicts[3])
+    from rich.text import Text as RichText
+    verdict_text = RichText.from_markup(f"{bar}  {label}")
+    verdict_text.justify = "center"
     console.print(Panel(
-        Text(f"{bar}  {label}", justify="center"),
+        verdict_text,
         title="[bold]VERDICT[/bold]",
         border_style=color,
         box=box.DOUBLE
