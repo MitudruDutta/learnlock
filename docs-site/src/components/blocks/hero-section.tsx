@@ -42,7 +42,7 @@ export function HeroSection() {
                                 <Link
                                     href="/docs/installation"
                                     className="hover:bg-[#1f1f23] bg-[#27272a] group mx-auto flex w-fit items-center gap-4 rounded-full border border-[#3f3f46] p-1 pl-4 shadow-md shadow-black/10 transition-all duration-300">
-                                    <span className="text-foreground text-sm">v0.1.4 is now available</span>
+                                    <span className="text-foreground text-sm">v0.1.5 is now available</span>
                                     <span className="block h-4 w-0.5 bg-[#3f3f46]"></span>
                                     <div className="bg-[#18181b] group-hover:bg-[#27272a] size-6 overflow-hidden rounded-full duration-500">
                                         <div className="flex w-12 -translate-x-1/2 duration-500 ease-in-out group-hover:translate-x-0">
