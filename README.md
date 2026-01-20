@@ -78,26 +78,17 @@ Clone the repository and install in editable mode.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           LearnLock                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐      │
-│   │  Tools   │──▶│   LLM    │──▶│  Duel    │──▶│   HUD    │      │
-│   │          │    │          │    │  Engine  │    │          │      │
-│   │ youtube  │    │ extract  │    │          │    │ claims   │      │
-│   │ article  │    │ concepts │    │ belief   │    │ belief   │      │
-│   │ pdf      │    │          │    │ model    │    │ attack   │      │
-│   │ github   │    │          │    │          │    │ reveal   │      │
-│   └──────────┘    └──────────┘    └──────────┘     └──────────┘      │
-│         │                               │               │           │
-│         ▼                               ▼               ▼           │
-│   ┌──────────┐                    ┌──────────┐    ┌──────────┐      │
-│   │ Storage  │◀───────────────── │Scheduler │    │   CLI    │      │
-│   │ SQLite   │                    │  SM-2    │    │          │      │
-│   └──────────┘                    └──────────┘    └──────────┘      │
-│                                                                    │
-└─────────────────────────────────────────────────────────────────────┘
+Tools (youtube, article, pdf, github)
+    │
+    ▼
+LLM ──▶ extract concepts & claims
+    │
+    ▼
+Duel Engine ──▶ belief modeling, contradiction detection, interrogation
+    │
+    ├──▶ Scheduler (SM-2) ──▶ Storage (SQLite)
+    │
+    └──▶ HUD ──▶ CLI (claims, belief, attack, reveal)
 ```
 
 ### Data Flow
