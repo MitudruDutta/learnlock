@@ -1,6 +1,6 @@
 [project]
-name = "learnlock"
-version = "0.1.5"
+name = "learn-lock"
+version = "0.1.0"
 description = "The app that argues with you. Adversarial Socratic learning with spaced repetition."
 readme = "README.md"
 license = {text = "MIT"}

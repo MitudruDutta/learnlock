@@ -1,15 +1,15 @@
 ```
 ██╗     ███████╗ █████╗ ██████╗ ███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗
 ██║     ██╔════╝██╔══██╗██╔══██╗████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝
-██║     █████╗  ███████║██████╔╝██╔██╗ ██║██║     ██║   ██║██║     █████╔╝ 
-██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ 
+██║     █████╗  ███████║██████╔╝██╔██╗ ██║██║     ██║   ██║██║     █████╔╝
+██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗
 ███████╗███████╗██║  ██║██║  ██║██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗
 ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝
 ```
 
 > **The app that argues with you.**
 
-LearnLock is a CLI learning tool that uses adversarial Socratic dialogue to expose gaps in your understanding. It doesn't quiz you — it *interrogates* you.
+LearnLock is a CLI learning tool that uses adversarial Socratic dialogue to expose gaps in your understanding. It doesn't quiz you — it _interrogates_ you.
 
 ---
 
@@ -79,24 +79,24 @@ Clone the repository and install in editable mode.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           LearnLock                                 │
+│                           LearnLock                                │
 ├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
+│                                                                    │
 │   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐      │
-│   │  Tools   │──▶ │   LLM    │ ──▶│  Duel    │──▶ │   HUD    │      │
+│   │  Tools   │──▶│   LLM    │──▶│  Duel    │──▶│   HUD    │      │
 │   │          │    │          │    │  Engine  │    │          │      │
 │   │ youtube  │    │ extract  │    │          │    │ claims   │      │
 │   │ article  │    │ concepts │    │ belief   │    │ belief   │      │
 │   │ pdf      │    │          │    │ model    │    │ attack   │      │
 │   │ github   │    │          │    │          │    │ reveal   │      │
-│   └──────────┘    └──────────┘    └──────────┘    └──────────┘      │
+│   └──────────┘    └──────────┘    └──────────┘     └──────────┘      │
 │         │                               │               │           │
 │         ▼                               ▼               ▼           │
 │   ┌──────────┐                    ┌──────────┐    ┌──────────┐      │
-│   │ Storage  │◀────────────────── │Scheduler │    │   CLI    │      │
+│   │ Storage  │◀───────────────── │Scheduler │    │   CLI    │      │
 │   │ SQLite   │                    │  SM-2    │    │          │      │
 │   └──────────┘                    └──────────┘    └──────────┘      │
-│                                                                     │
+│                                                                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -134,7 +134,7 @@ The cognitive core of LearnLock. Located in `duel.py`.
 
 Traditional learning apps ask: "Do you know X?"
 
-LearnLock asks: "What do you *believe* about X, and where is it wrong?"
+LearnLock asks: "What do you _believe_ about X, and where is it wrong?"
 
 ### Pipeline
 
@@ -189,11 +189,13 @@ Claims are the epistemic foundation. The duel is only as fair as the claims.
 ### Good vs Bad Claims
 
 Bad claims get rejected:
+
 - "The server processes requests" (tautology)
 - "It handles security" (blurry)
 - "Must be running to work" (stateful)
 
 Good claims survive:
+
 - "Validates request payloads against a JSON schema"
 - "Enforces authentication via JWT token verification"
 - "Uses Python type hints for automatic request validation"
@@ -207,12 +209,14 @@ Good claims survive:
 Core dataclasses: `Claim`, `BeliefError`, `BeliefSnapshot`, `BeliefState`
 
 Main class `DuelEngine` provides:
+
 - `process(user_input)` — Process response, return attack or reveal
 - `get_reveal()` — Get final state with claims, errors, trajectory
 - `get_claims()` — Get parsed claims
 - `finished` — Boolean indicating duel completion
 
 Helper functions:
+
 - `create_duel()` — Factory for DuelEngine
 - `belief_to_score()` — Convert final state to 1-5 score
 - `export_duel_data()` — Export for research/training
@@ -230,6 +234,7 @@ Helper functions:
 Entry point `main()` launches the REPL.
 
 Key commands routed through `handle_input()`:
+
 - `cmd_study()` — Main duel session loop
 - `cmd_add()` — Add content from URL
 - `cmd_stats()` — Display progress statistics
@@ -241,6 +246,7 @@ Key commands routed through `handle_input()`:
 SQLite database with tables for sources, concepts, explanations, progress, and duel_memory.
 
 Key functions:
+
 - `add_source()` / `get_source()` — Source CRUD
 - `add_concept()` / `get_concept()` — Concept CRUD
 - `get_due_concepts()` — Query due items
@@ -267,18 +273,22 @@ Dual-provider setup: Groq for extraction, Gemini for evaluation.
 ### tools/ — Content Extraction
 
 **youtube.py**
+
 - `extract_youtube()` — Get transcript with timestamps
 - `find_timestamp_for_text()` — Find timestamp for concept
 - `extract_frame_at_timestamp()` — Extract and describe frame with Gemini Vision
 - Whisper fallback for videos without transcripts
 
 **article.py**
+
 - `extract_article()` — Extract text from web articles using trafilatura
 
 **pdf.py**
+
 - `extract_pdf()` — Extract text from local or remote PDFs using pymupdf
 
 **github.py**
+
 - `extract_github()` — Extract README from GitHub repositories
 
 ### ocr.py — Image Input
@@ -291,18 +301,23 @@ Dual-provider setup: Groq for extraction, Gemini for evaluation.
 ## Database Schema
 
 ### sources
+
 Stores raw content from URLs. Fields: id, url, title, source_type, raw_content, segments (JSON for YouTube timestamps), created_at
 
 ### concepts
+
 Stores extracted concepts. Fields: id, source_id, name, source_quote (ground truth), question, skipped, created_at
 
 ### explanations
+
 Stores user responses and scores. Fields: id, concept_id, text, score, covered, missed, feedback, created_at
 
 ### progress
+
 SM-2 scheduling data. Fields: id, concept_id, ease_factor, interval_days, due_date, review_count, last_score
 
 ### duel_memory
+
 Persists last duel state for returning users. Fields: id, concept_id, last_belief, last_errors, last_attack, updated_at
 
 ---
@@ -312,19 +327,23 @@ Persists last duel state for returning users. Fields: id, concept_id, last_belie
 All settings configurable via environment variables.
 
 ### Paths
+
 - `LEARNLOCK_DATA_DIR` — Data directory (default: ~/.learnlock)
 
 ### Models
+
 - `LEARNLOCK_GROQ_MODEL` — Groq model for extraction
 - `LEARNLOCK_GEMINI_MODEL` — Gemini model for evaluation and vision
 
 ### SM-2 Parameters
+
 - `LEARNLOCK_SM2_INITIAL_EASE` — Starting ease factor (default: 2.5)
 - `LEARNLOCK_SM2_INITIAL_INTERVAL` — Starting interval in days (default: 1.0)
 - `LEARNLOCK_SM2_MIN_EASE` — Minimum ease factor (default: 1.3)
 - `LEARNLOCK_SM2_MAX_INTERVAL` — Maximum interval in days (default: 180)
 
 ### Extraction
+
 - `LEARNLOCK_MIN_CONCEPTS` — Minimum concepts per source (default: 8)
 - `LEARNLOCK_MAX_CONCEPTS` — Maximum concepts per source (default: 12)
 - `LEARNLOCK_CONTENT_MAX_CHARS` — Max content length for processing (default: 8000)
@@ -333,18 +352,18 @@ All settings configurable via environment variables.
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `/add <url>` | Add YouTube, article, PDF, or GitHub |
-| `/study` | Start duel session |
-| `/stats` | View progress statistics |
-| `/list` | List all concepts |
-| `/due` | Show concepts due for review |
-| `/skip <name>` | Skip a concept |
-| `/unskip <name>` | Restore skipped concept |
-| `/config` | Show current configuration |
-| `/help` | Show help |
-| `/quit` | Exit |
+| Command          | Description                          |
+| ---------------- | ------------------------------------ |
+| `/add <url>`     | Add YouTube, article, PDF, or GitHub |
+| `/study`         | Start duel session                   |
+| `/stats`         | View progress statistics             |
+| `/list`          | List all concepts                    |
+| `/due`           | Show concepts due for review         |
+| `/skip <name>`   | Skip a concept                       |
+| `/unskip <name>` | Restore skipped concept              |
+| `/config`        | Show current configuration           |
+| `/help`          | Show help                            |
+| `/quit`          | Exit                                 |
 
 ### Flags
 

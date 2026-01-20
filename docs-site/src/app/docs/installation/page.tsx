@@ -14,7 +14,7 @@ export default function InstallationPage() {
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">pip (Recommended)</h2>
-        <CodeBlock code="pip install learnlock" />
+        <CodeBlock code="pip install learn-lock" />
       </section>
 
       <section className="space-y-3 sm:space-y-4">
@@ -68,7 +68,7 @@ $env:GEMINI_API_KEY="your_gemini_key"`}
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Verify Installation</h2>
-        <CodeBlock code="learnlock --version" />
+        <CodeBlock code="learn-lock --version" />
       </section>
 
       <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
