@@ -143,6 +143,10 @@ if (typeof window !== "undefined") {
     private _initialized: boolean = false
     private _resizeObserver: ResizeObserver | null = null
     private _parent: Element | null = null
+    private _handleMouseEnter = () => this.handleAnimation("appear")
+    private _handleMouseLeave = () => this.handleAnimation("disappear")
+    private _handleFocus = () => this.handleAnimation("appear")
+    private _handleBlur = () => this.handleAnimation("disappear")
 
     constructor() {
       super()
@@ -204,24 +208,12 @@ if (typeof window !== "undefined") {
       this._resizeObserver = ro
     })
 
-    this._parent?.addEventListener("mouseenter", () =>
-      this.handleAnimation("appear"),
-    )
-    this._parent?.addEventListener("mouseleave", () =>
-      this.handleAnimation("disappear"),
-    )
+    this._parent?.addEventListener("mouseenter", this._handleMouseEnter)
+    this._parent?.addEventListener("mouseleave", this._handleMouseLeave)
 
     if (!this.noFocus) {
-      this._parent?.addEventListener(
-        "focus",
-        () => this.handleAnimation("appear"),
-        { capture: true },
-      )
-      this._parent?.addEventListener(
-        "blur",
-        () => this.handleAnimation("disappear"),
-        { capture: true },
-      )
+      this._parent?.addEventListener("focus", this._handleFocus, { capture: true })
+      this._parent?.addEventListener("blur", this._handleBlur, { capture: true })
     }
   }
 
@@ -229,20 +221,12 @@ if (typeof window !== "undefined") {
     this._initialized = false
     this._resizeObserver?.disconnect()
 
-    this._parent?.removeEventListener("mouseenter", () =>
-      this.handleAnimation("appear"),
-    )
-    this._parent?.removeEventListener("mouseleave", () =>
-      this.handleAnimation("disappear"),
-    )
+    this._parent?.removeEventListener("mouseenter", this._handleMouseEnter)
+    this._parent?.removeEventListener("mouseleave", this._handleMouseLeave)
 
     if (!this.noFocus) {
-      this._parent?.removeEventListener("focus", () =>
-        this.handleAnimation("appear"),
-      )
-      this._parent?.removeEventListener("blur", () =>
-        this.handleAnimation("disappear"),
-      )
+      this._parent?.removeEventListener("focus", this._handleFocus, { capture: true })
+      this._parent?.removeEventListener("blur", this._handleBlur, { capture: true })
     }
 
     if (this.animation) {

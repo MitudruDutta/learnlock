@@ -30,9 +30,8 @@ const transitionVariants: { container?: Variants; item?: Variants } = {
 
 export function HeroSection() {
     return (
-        <main id="hero" className="overflow-hidden bg-[#18181b]">
-            <section>
-                <div className="relative pt-24 md:pt-36">
+        <section id="hero" className="overflow-hidden bg-[#18181b]">
+            <div className="relative pt-24 md:pt-36">
                     {/* Lamp Effect Background */}
                     <LampEffect />
                     
@@ -83,8 +82,7 @@ export function HeroSection() {
                             <TerminalDemo />
                         </ContainerScroll>
                     </div>
-                </div>
-            </section>
-        </main>
+            </div>
+        </section>
     )
 }

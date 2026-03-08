@@ -18,11 +18,6 @@ export default function InstallationPage() {
       </section>
 
       <section className="space-y-3 sm:space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">curl (macOS/Linux)</h2>
-        <CodeBlock code="curl -fsSL https://raw.githubusercontent.com/MitudruDutta/learnlock/main/install.sh | bash" />
-      </section>
-
-      <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">From Source</h2>
         <CodeBlock 
           language="bash"
@@ -33,10 +28,26 @@ pip install -e .`}
       </section>
 
       <section className="space-y-3 sm:space-y-4">
+        <h2 className="text-xl sm:text-2xl font-semibold">Install Script (Inspect First)</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          Avoid piping a mutable remote script straight into your shell. Download it, review it, then run it.
+        </p>
+        <CodeBlock
+          language="bash"
+          code={`curl -fsSLo install.sh https://raw.githubusercontent.com/MitudruDutta/learnlock/main/install.sh
+less install.sh
+bash install.sh`}
+        />
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          For automation, pin a tagged release or commit instead of the moving <code>main</code> branch.
+        </p>
+      </section>
+
+      <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">API Keys Setup</h2>
         <p className="text-sm sm:text-base text-muted-foreground">LearnLock requires at least one API key. Both are free.</p>
         
-        <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">1. Groq API Key (Required)</h3>
+        <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">1. Groq API Key (Recommended)</h3>
         <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-sm sm:text-base text-muted-foreground">
           <li>Go to <a href="https://console.groq.com" className="text-foreground underline">console.groq.com</a></li>
           <li>Create an account (free)</li>
