@@ -2,6 +2,8 @@
 
 import re
 
+from ..security import REQUEST_HEADERS
+
 
 def extract_github(url: str) -> dict:
     """Extract README and key files from GitHub repo.
@@ -25,8 +27,13 @@ def extract_github(url: str) -> dict:
     api_base = f"https://api.github.com/repos/{owner}/{repo}"
     
     try:
+        headers = {
+            **REQUEST_HEADERS,
+            "Accept": "application/vnd.github+json",
+        }
+
         # Get repo info
-        resp = requests.get(api_base, timeout=10)
+        resp = requests.get(api_base, timeout=10, headers=headers)
         if resp.status_code != 200:
             return {"error": f"GitHub API error: {resp.status_code}"}
         
@@ -37,7 +44,11 @@ def extract_github(url: str) -> dict:
         # Get README
         readme_content = ""
         for readme_name in ["README.md", "README.rst", "README.txt", "README"]:
-            readme_resp = requests.get(f"{api_base}/contents/{readme_name}", timeout=10)
+            readme_resp = requests.get(
+                f"{api_base}/contents/{readme_name}",
+                timeout=10,
+                headers=headers,
+            )
             if readme_resp.status_code == 200:
                 import base64
                 readme_data = readme_resp.json()

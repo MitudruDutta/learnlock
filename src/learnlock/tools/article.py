@@ -2,6 +2,8 @@
 
 import trafilatura
 
+from ..security import validate_remote_url
+
 
 def extract_article(url: str) -> dict:
     """Extract text content from web article.
@@ -10,7 +12,8 @@ def extract_article(url: str) -> dict:
     Or: {"error": str}
     """
     try:
-        downloaded = trafilatura.fetch_url(url)
+        safe_url = validate_remote_url(url)
+        downloaded = trafilatura.fetch_url(safe_url)
         if not downloaded:
             return {"error": "Failed to download article"}
         
@@ -28,7 +31,7 @@ def extract_article(url: str) -> dict:
         return {
             "title": title,
             "content": content,
-            "url": url,
+            "url": safe_url,
             "source_type": "article",
         }
     except Exception as e:

@@ -1,8 +1,18 @@
 """YouTube transcript extraction with timestamps for concept linking."""
 
-import re
 import os
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
+
+from .. import config
+
+_YOUTUBE_HOSTS = {
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtu.be",
+}
 
 
 def extract_youtube(url: str) -> dict:
@@ -17,14 +27,15 @@ def extract_youtube(url: str) -> dict:
     }
     Or: {"error": str}
     """
-    video_id = _extract_video_id(url)
-    if not video_id:
+    normalized = _normalize_youtube_url(url)
+    if not normalized:
         return {"error": "Invalid YouTube URL"}
+    video_id, canonical_url = normalized
     
-    result = _try_youtube_api(video_id, url)
+    result = _try_youtube_api(video_id, canonical_url)
     if "error" in result:
         if os.getenv("GROQ_API_KEY"):
-            result = _try_whisper_fallback(video_id, url)
+            result = _try_whisper_fallback(video_id, canonical_url)
     
     return result
 
@@ -39,12 +50,12 @@ def _try_youtube_api(video_id: str, url: str) -> dict:
         
         try:
             transcript = api.fetch(video_id, languages=("en", "en-US", "en-GB"))
-        except:
+        except Exception:
             try:
                 transcript_list = api.list(video_id)
                 if transcript_list:
                     transcript = transcript_list[0].fetch()
-            except:
+            except Exception:
                 pass
         
         if not transcript:
@@ -91,9 +102,10 @@ def find_timestamp_for_text(segments: list[dict], search_text: str) -> Optional[
 
 def get_video_link_at_time(url: str, timestamp: float) -> str:
     """Generate YouTube URL at specific timestamp."""
-    video_id = _extract_video_id(url)
-    if not video_id:
+    normalized = _normalize_youtube_url(url)
+    if not normalized:
         return url
+    video_id, _ = normalized
     return f"https://youtube.com/watch?v={video_id}&t={int(timestamp)}"
 
 
@@ -102,9 +114,10 @@ def extract_frame_at_timestamp(url: str, timestamp: float) -> Optional[str]:
     if not os.getenv("GEMINI_API_KEY"):
         return None
     
-    video_id = _extract_video_id(url)
-    if not video_id:
+    normalized = _normalize_youtube_url(url)
+    if not normalized:
         return None
+    video_id, canonical_url = normalized
     
     try:
         import tempfile
@@ -118,14 +131,17 @@ def extract_frame_at_timestamp(url: str, timestamp: float) -> Optional[str]:
         with tempfile.TemporaryDirectory() as tmpdir:
             video_path = os.path.join(tmpdir, "v.mp4")
             frame_path = os.path.join(tmpdir, "frame.jpg")
+            _validate_downloadable_video(canonical_url)
             
             with yt_dlp.YoutubeDL({
                 "format": "worst[ext=mp4]/worst",
+                "max_filesize": config.MAX_REMOTE_DOWNLOAD_BYTES,
+                "noplaylist": True,
                 "outtmpl": video_path,
                 "quiet": True,
                 "no_warnings": True,
             }) as ydl:
-                ydl.download([url])
+                ydl.download([canonical_url])
             
             if not os.path.exists(video_path):
                 return None
@@ -148,8 +164,8 @@ def extract_frame_at_timestamp(url: str, timestamp: float) -> Optional[str]:
             ])
             
             return resp.text.strip() if resp.text else None
-            
-    except:
+
+    except Exception:
         return None
 
 
@@ -169,19 +185,16 @@ def _try_whisper_fallback(video_id: str, url: str) -> dict:
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = os.path.join(tmpdir, "audio")
+            info = _validate_downloadable_video(url)
             
             # Get title first
-            title = f"YouTube Video ({video_id})"
-            try:
-                with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    title = info.get("title", title)
-            except:
-                pass
+            title = info.get("title") or f"YouTube Video ({video_id})"
             
             # Download audio
             ydl_opts = {
                 "format": "m4a/bestaudio[ext=m4a]/bestaudio",
+                "max_filesize": config.MAX_REMOTE_DOWNLOAD_BYTES,
+                "noplaylist": True,
                 "outtmpl": audio_path + ".%(ext)s",
                 "quiet": True,
                 "no_warnings": True,
@@ -230,18 +243,58 @@ def _get_video_title(video_id: str) -> Optional[str]:
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
             info = ydl.extract_info(f"https://youtube.com/watch?v={video_id}", download=False)
             return info.get("title")
-    except:
+    except Exception:
         return None
 
 
 def _extract_video_id(url: str) -> Optional[str]:
     """Extract video ID from various YouTube URL formats."""
-    patterns = [
-        r"(?:v=|/v/|youtu\.be/)([a-zA-Z0-9_-]{11})",
-        r"(?:embed/)([a-zA-Z0-9_-]{11})",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
+    normalized = _normalize_youtube_url(url)
+    return normalized[0] if normalized else None
+
+
+def _normalize_youtube_url(url: str) -> Optional[tuple[str, str]]:
+    """Accept only canonical YouTube hosts and return a trusted watch URL."""
+    parsed = urlparse(url.strip())
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if hostname not in _YOUTUBE_HOSTS:
+        return None
+
+    video_id = ""
+    if hostname == "youtu.be":
+        video_id = parsed.path.lstrip("/").split("/", 1)[0]
+    else:
+        if parsed.path == "/watch":
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        else:
+            parts = [part for part in parsed.path.split("/") if part]
+            if len(parts) >= 2 and parts[0] in {"embed", "shorts", "live", "v"}:
+                video_id = parts[1]
+
+    if len(video_id) != 11 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in video_id):
+        return None
+
+    return video_id, f"https://www.youtube.com/watch?v={video_id}"
+
+
+def _validate_downloadable_video(url: str) -> dict:
+    """Reject oversized or excessively long downloads before yt-dlp writes anything."""
+    import yt_dlp
+
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True}) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    duration = info.get("duration")
+    if duration and duration > config.MAX_YOUTUBE_DURATION_SECONDS:
+        raise ValueError(
+            f"Video is too long ({duration}s > {config.MAX_YOUTUBE_DURATION_SECONDS}s limit)"
+        )
+
+    estimated_size = info.get("filesize") or info.get("filesize_approx")
+    if estimated_size and estimated_size > config.MAX_REMOTE_DOWNLOAD_BYTES:
+        raise ValueError(
+            f"Video is too large ({estimated_size // (1024 * 1024)}MB > "
+            f"{config.MAX_REMOTE_DOWNLOAD_BYTES // (1024 * 1024)}MB limit)"
+        )
+
+    return info

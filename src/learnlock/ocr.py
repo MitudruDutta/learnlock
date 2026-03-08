@@ -3,20 +3,30 @@
 import os
 from pathlib import Path
 
+from . import config
+
 
 def extract_text_from_image(image_path: str) -> dict:
     """Extract text from image using OCR.
-    
+
     Returns: {"text": str, "confidence": float}
     Or: {"error": str}
     """
     path = Path(image_path)
-    
+
     if not path.exists():
         return {"error": f"File not found: {image_path}"}
-    
+
     if path.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"):
         return {"error": f"Unsupported image format: {path.suffix}"}
+
+    try:
+        file_size = path.stat().st_size
+        if file_size > config.MAX_IMAGE_FILE_BYTES:
+            limit_mb = config.MAX_IMAGE_FILE_BYTES // (1024 * 1024)
+            return {"error": f"Image too large ({file_size // (1024 * 1024)}MB > {limit_mb}MB limit)"}
+    except OSError as e:
+        return {"error": f"Cannot read file: {e}"}
     
     # Try EasyOCR first (better accuracy, works offline)
     result = _try_easyocr(str(path))
@@ -41,9 +51,8 @@ def check_relevance(text: str, concept_name: str, source_quote: str) -> dict:
     
     # Use LLM to check relevance
     try:
-        from . import config
         import os
-        
+
         prompt = f"""Is this text relevant to explaining the concept "{concept_name}"?
 
 Concept context: "{source_quote[:200]}"

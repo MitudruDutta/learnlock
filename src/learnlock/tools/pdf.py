@@ -1,7 +1,9 @@
 """PDF extraction tool."""
 
 import os
-import tempfile
+from pathlib import Path
+
+from ..security import download_to_tempfile
 
 
 def extract_pdf(path_or_url: str) -> dict:
@@ -15,31 +17,28 @@ def extract_pdf(path_or_url: str) -> dict:
     except ImportError:
         return {"error": "pymupdf not installed. Run: pip install pymupdf"}
     
+    temp_path = None
     try:
         pdf_path = path_or_url
         
         # Download if URL
         if path_or_url.startswith(("http://", "https://")):
-            import urllib.request
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
-                urllib.request.urlretrieve(path_or_url, f.name)
-                pdf_path = f.name
+            temp_path = download_to_tempfile(path_or_url, suffix=".pdf")
+            pdf_path = str(temp_path)
+        else:
+            pdf_path = str(Path(path_or_url).expanduser().resolve())
         
         if not os.path.exists(pdf_path):
             return {"error": f"File not found: {pdf_path}"}
         
-        doc = pymupdf.open(pdf_path)
-        text_parts = []
-        for page in doc:
-            text_parts.append(page.get_text())
-        
-        content = "\n".join(text_parts)
-        if not content.strip():
-            return {"error": "No text found in PDF"}
-        
-        # Get title from metadata or filename
-        title = doc.metadata.get("title") or os.path.basename(pdf_path).replace(".pdf", "")
-        doc.close()
+        with pymupdf.open(pdf_path) as doc:
+            text_parts = [page.get_text() for page in doc]
+            content = "\n".join(text_parts)
+            if not content.strip():
+                return {"error": "No text found in PDF"}
+            
+            # Get title from metadata or filename
+            title = doc.metadata.get("title") or os.path.basename(pdf_path).replace(".pdf", "")
         
         return {
             "title": title,
@@ -49,3 +48,6 @@ def extract_pdf(path_or_url: str) -> dict:
         }
     except Exception as e:
         return {"error": f"PDF extraction failed: {e}"}
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
