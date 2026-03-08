@@ -17,7 +17,6 @@ _YOUTUBE_HOSTS = {
 
 def extract_youtube(url: str) -> dict:
     """Extract transcript with timestamps from YouTube.
-    
     Returns: {
         "title": str,
         "content": str,
@@ -31,12 +30,12 @@ def extract_youtube(url: str) -> dict:
     if not normalized:
         return {"error": "Invalid YouTube URL"}
     video_id, canonical_url = normalized
-    
+
     result = _try_youtube_api(video_id, canonical_url)
     if "error" in result:
         if os.getenv("GROQ_API_KEY"):
             result = _try_whisper_fallback(video_id, canonical_url)
-    
+
     return result
 
 
@@ -44,10 +43,10 @@ def _try_youtube_api(video_id: str, url: str) -> dict:
     """Get transcript with timestamps via YouTube API."""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        
+
         api = YouTubeTranscriptApi()
         transcript = None
-        
+
         try:
             transcript = api.fetch(video_id, languages=("en", "en-US", "en-GB"))
         except Exception:
@@ -57,14 +56,14 @@ def _try_youtube_api(video_id: str, url: str) -> dict:
                     transcript = transcript_list[0].fetch()
             except Exception:
                 pass
-        
+
         if not transcript:
             return {"error": "No transcript available"}
-        
+
         segments = [{"text": s.text, "start": s.start} for s in transcript]
         text = " ".join([s.text for s in transcript])
         title = _get_video_title(video_id) or f"YouTube Video ({video_id})"
-        
+
         return {
             "title": title,
             "content": text,
@@ -80,13 +79,13 @@ def find_timestamp_for_text(segments: list[dict], search_text: str) -> Optional[
     """Find timestamp where a concept appears in transcript."""
     if not segments:
         return None
-    
+
     search_lower = search_text.lower()
     search_words = set(search_lower.split())
-    
+
     best_match = None
     best_score = 0
-    
+
     for seg in segments:
         seg_text = seg["text"].lower()
         if search_lower[:30] in seg_text:
@@ -96,7 +95,7 @@ def find_timestamp_for_text(segments: list[dict], search_text: str) -> Optional[
         if overlap > best_score:
             best_score = overlap
             best_match = seg["start"]
-    
+
     return best_match if best_score >= 2 else None
 
 
@@ -113,56 +112,73 @@ def extract_frame_at_timestamp(url: str, timestamp: float) -> Optional[str]:
     """Extract frame at timestamp and describe with Gemini Vision. On-demand when user fails."""
     if not os.getenv("GEMINI_API_KEY"):
         return None
-    
+
     normalized = _normalize_youtube_url(url)
     if not normalized:
         return None
     video_id, canonical_url = normalized
-    
+
     try:
-        import tempfile
         import subprocess
-        import yt_dlp
+        import tempfile
+
         import google.generativeai as genai
         import PIL.Image
-        
+        import yt_dlp
+
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             video_path = os.path.join(tmpdir, "v.mp4")
             frame_path = os.path.join(tmpdir, "frame.jpg")
             _validate_downloadable_video(canonical_url)
-            
-            with yt_dlp.YoutubeDL({
-                "format": "worst[ext=mp4]/worst",
-                "max_filesize": config.MAX_REMOTE_DOWNLOAD_BYTES,
-                "noplaylist": True,
-                "outtmpl": video_path,
-                "quiet": True,
-                "no_warnings": True,
-            }) as ydl:
+
+            with yt_dlp.YoutubeDL(
+                {
+                    "format": "worst[ext=mp4]/worst",
+                    "max_filesize": config.MAX_REMOTE_DOWNLOAD_BYTES,
+                    "noplaylist": True,
+                    "outtmpl": video_path,
+                    "quiet": True,
+                    "no_warnings": True,
+                }
+            ) as ydl:
                 ydl.download([canonical_url])
-            
+
             if not os.path.exists(video_path):
                 return None
-            
-            subprocess.run([
-                "ffmpeg", "-ss", str(timestamp), "-i", video_path,
-                "-frames:v", "1", "-q:v", "2", frame_path
-            ], capture_output=True, timeout=30)
-            
+
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-ss",
+                    str(timestamp),
+                    "-i",
+                    video_path,
+                    "-frames:v",
+                    "1",
+                    "-q:v",
+                    "2",
+                    frame_path,
+                ],
+                capture_output=True,
+                timeout=30,
+            )
+
             if not os.path.exists(frame_path):
                 return None
-            
+
             img = PIL.Image.open(frame_path)
             model = genai.GenerativeModel("gemini-2.5-flash")
-            resp = model.generate_content([
-                "Describe what is shown in this educational video frame. "
-                "Focus on: equations, diagrams, text, code, formulas, whiteboard. "
-                "Transcribe any visible text exactly. Be specific.",
-                img
-            ])
-            
+            resp = model.generate_content(
+                [
+                    "Describe what is shown in this educational video frame. "
+                    "Focus on: equations, diagrams, text, code, formulas, whiteboard. "
+                    "Transcribe any visible text exactly. Be specific.",
+                    img,
+                ]
+            )
+
             return resp.text.strip() if resp.text else None
 
     except Exception:
@@ -173,23 +189,24 @@ def _try_whisper_fallback(video_id: str, url: str) -> dict:
     """Fallback: download audio and transcribe with Groq Whisper."""
     try:
         import tempfile
+
         import yt_dlp
         from groq import Groq
     except ImportError as e:
         return {"error": f"Missing dependency for Whisper fallback: {e}"}
-    
+
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         return {"error": "GROQ_API_KEY not set"}
-    
+
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = os.path.join(tmpdir, "audio")
             info = _validate_downloadable_video(url)
-            
+
             # Get title first
             title = info.get("title") or f"YouTube Video ({video_id})"
-            
+
             # Download audio
             ydl_opts = {
                 "format": "m4a/bestaudio[ext=m4a]/bestaudio",
@@ -199,25 +216,25 @@ def _try_whisper_fallback(video_id: str, url: str) -> dict:
                 "quiet": True,
                 "no_warnings": True,
             }
-            
+
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
-            
+
             # Find downloaded file
             audio_file = None
             for f in os.listdir(tmpdir):
                 if f.startswith("audio."):
                     audio_file = os.path.join(tmpdir, f)
                     break
-            
+
             if not audio_file or not os.path.exists(audio_file):
                 return {"error": "Audio download failed"}
-            
+
             # Check size (25MB limit)
             file_size = os.path.getsize(audio_file)
             if file_size > 25 * 1024 * 1024:
                 return {"error": f"Audio too large ({file_size // 1024 // 1024}MB > 25MB limit)"}
-            
+
             # Transcribe with Groq Whisper
             client = Groq(api_key=api_key)
             with open(audio_file, "rb") as f:
@@ -225,7 +242,7 @@ def _try_whisper_fallback(video_id: str, url: str) -> dict:
                     file=(os.path.basename(audio_file), f),
                     model="whisper-large-v3",
                 )
-            
+
             return {
                 "title": title,
                 "content": transcription.text,
@@ -240,6 +257,7 @@ def _get_video_title(video_id: str) -> Optional[str]:
     """Try to get video title using yt-dlp."""
     try:
         import yt_dlp
+
         with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
             info = ydl.extract_info(f"https://youtube.com/watch?v={video_id}", download=False)
             return info.get("title")
@@ -271,7 +289,8 @@ def _normalize_youtube_url(url: str) -> Optional[tuple[str, str]]:
             if len(parts) >= 2 and parts[0] in {"embed", "shorts", "live", "v"}:
                 video_id = parts[1]
 
-    if len(video_id) != 11 or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in video_id):
+    valid_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+    if len(video_id) != 11 or any(ch not in valid_chars for ch in video_id):
         return None
 
     return video_id, f"https://www.youtube.com/watch?v={video_id}"

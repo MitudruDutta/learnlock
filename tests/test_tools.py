@@ -1,7 +1,5 @@
 """Tests for content extraction tools."""
 
-import pytest
-
 from learnlock.tools.youtube import _normalize_youtube_url, find_timestamp_for_text
 
 

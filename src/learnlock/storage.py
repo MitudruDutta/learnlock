@@ -121,7 +121,9 @@ def init_db(db_path: Path | None = None) -> None:
         cols = [row[1] for row in cursor.fetchall()]
         if "ground_truth" not in cols:
             conn.execute("ALTER TABLE concepts ADD COLUMN ground_truth TEXT")
-            conn.execute("UPDATE concepts SET ground_truth = source_quote WHERE ground_truth IS NULL")
+            conn.execute(
+                "UPDATE concepts SET ground_truth = source_quote WHERE ground_truth IS NULL"
+            )
 
         # Add duel_memory table if missing (migration for pre-duel databases)
         cursor = conn.execute(
@@ -225,7 +227,8 @@ def add_source_with_concepts(
         for concept in concepts:
             concept_cursor = conn.execute(
                 """
-                INSERT INTO concepts (source_id, name, source_quote, ground_truth, question, created_at)
+                INSERT INTO concepts
+                (source_id, name, source_quote, ground_truth, question, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -287,10 +290,18 @@ def add_concept(
     with get_db() as conn:
         cursor = conn.execute(
             """
-            INSERT INTO concepts (source_id, name, source_quote, ground_truth, question, created_at)
+            INSERT INTO concepts
+            (source_id, name, source_quote, ground_truth, question, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (source_id, name, source_quote, ground_truth or source_quote, question, now.isoformat()),
+            (
+                source_id,
+                name,
+                source_quote,
+                ground_truth or source_quote,
+                question,
+                now.isoformat(),
+            ),
         )
         concept_id = cursor.lastrowid
 
@@ -395,9 +406,7 @@ def get_due_concepts(limit: int | None = None) -> list[dict]:
 def get_progress(concept_id: int) -> Optional[dict]:
     """Get progress for a concept."""
     with get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM progress WHERE concept_id = ?", (concept_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM progress WHERE concept_id = ?", (concept_id,)).fetchone()
         return dict(row) if row else None
 
 
@@ -468,9 +477,9 @@ def get_stats() -> dict:
     """Get overall statistics."""
     with get_db() as conn:
         total_sources = conn.execute("SELECT COUNT(*) FROM sources").fetchone()[0]
-        total_concepts = conn.execute(
-            "SELECT COUNT(*) FROM concepts WHERE skipped = 0"
-        ).fetchone()[0]
+        total_concepts = conn.execute("SELECT COUNT(*) FROM concepts WHERE skipped = 0").fetchone()[
+            0
+        ]
         skipped_concepts = conn.execute(
             "SELECT COUNT(*) FROM concepts WHERE skipped = 1"
         ).fetchone()[0]
@@ -560,9 +569,7 @@ def get_cached_claims(concept_id: int) -> list[dict] | None:
         if not rows:
             return None
 
-        return [
-            {"statement": row[0], "claim_type": row[1], "claim_index": row[2]} for row in rows
-        ]
+        return [{"statement": row[0], "claim_type": row[1], "claim_index": row[2]} for row in rows]
 
 
 def save_cached_claims(concept_id: int, claims: list[dict]) -> None:
@@ -572,7 +579,8 @@ def save_cached_claims(concept_id: int, claims: list[dict]) -> None:
         now = _utcnow().isoformat()
         for claim in claims:
             conn.execute(
-                "INSERT INTO cached_claims (concept_id, statement, claim_type, claim_index, created_at) "
+                "INSERT INTO cached_claims "
+                "(concept_id, statement, claim_type, claim_index, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
                     concept_id,

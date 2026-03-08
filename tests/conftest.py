@@ -4,8 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from learnlock import config
-from learnlock import storage
+from learnlock import config, storage
 
 
 @pytest.fixture()

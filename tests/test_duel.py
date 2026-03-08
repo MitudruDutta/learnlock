@@ -1,7 +1,8 @@
 """Tests for the Duel Engine."""
 
-import pytest
+from pathlib import Path
 
+from learnlock import config
 from learnlock.duel import (
     BeliefError,
     BeliefState,
@@ -14,8 +15,6 @@ from learnlock.duel import (
     belief_to_score,
     save_duel_data,
 )
-from learnlock import config
-from pathlib import Path
 
 
 class TestBeliefToScore:
@@ -24,28 +23,24 @@ class TestBeliefToScore:
         assert belief_to_score(state) == 5
 
     def test_minor_severity_gives_4(self):
-        state = BeliefState(errors=[
-            BeliefError("superficial", "desc", 1, "claim", 0)
-        ])
+        state = BeliefState(errors=[BeliefError("superficial", "desc", 1, "claim", 0)])
         assert belief_to_score(state) == 4
 
     def test_significant_severity_gives_3(self):
-        state = BeliefState(errors=[
-            BeliefError("missing_mechanism", "desc", 2, "claim", 0)
-        ])
+        state = BeliefState(errors=[BeliefError("missing_mechanism", "desc", 2, "claim", 0)])
         assert belief_to_score(state) == 3
 
     def test_critical_severity_gives_1(self):
-        state = BeliefState(errors=[
-            BeliefError("wrong_mechanism", "desc", 3, "claim", 0)
-        ])
+        state = BeliefState(errors=[BeliefError("wrong_mechanism", "desc", 3, "claim", 0)])
         assert belief_to_score(state) == 1
 
     def test_mixed_severities_uses_max(self):
-        state = BeliefState(errors=[
-            BeliefError("superficial", "desc", 1, "claim", 0),
-            BeliefError("wrong_mechanism", "desc", 3, "claim", 1),
-        ])
+        state = BeliefState(
+            errors=[
+                BeliefError("superficial", "desc", 1, "claim", 0),
+                BeliefError("wrong_mechanism", "desc", 3, "claim", 1),
+            ]
+        )
         assert belief_to_score(state) == 1
 
     def test_all_scores_reachable(self):
@@ -53,15 +48,9 @@ class TestBeliefToScore:
         reachable = set()
 
         reachable.add(belief_to_score(BeliefState()))  # 5
-        reachable.add(belief_to_score(BeliefState(errors=[
-            BeliefError("x", "d", 1, "c", 0)
-        ])))  # 4
-        reachable.add(belief_to_score(BeliefState(errors=[
-            BeliefError("x", "d", 2, "c", 0)
-        ])))  # 3
-        reachable.add(belief_to_score(BeliefState(errors=[
-            BeliefError("x", "d", 3, "c", 0)
-        ])))  # 1
+        reachable.add(belief_to_score(BeliefState(errors=[BeliefError("x", "d", 1, "c", 0)])))  # 4
+        reachable.add(belief_to_score(BeliefState(errors=[BeliefError("x", "d", 2, "c", 0)])))  # 3
+        reachable.add(belief_to_score(BeliefState(errors=[BeliefError("x", "d", 3, "c", 0)])))  # 1
 
         assert reachable == {1, 3, 4, 5}
 
@@ -164,16 +153,12 @@ class TestContradictionDetector:
             "learnlock.duel._duel_llm",
             lambda prompt: "99|wrong_mechanism|bad index|2",
         )
-        errors = _run_contradiction_detector(
-            "belief", [Claim("claim", "mechanism", 0)], 1
-        )
+        errors = _run_contradiction_detector("belief", [Claim("claim", "mechanism", 0)], 1)
         assert len(errors) == 0
 
     def test_none_response(self, monkeypatch):
         monkeypatch.setattr("learnlock.duel._duel_llm", lambda prompt: "NONE")
-        errors = _run_contradiction_detector(
-            "belief", [Claim("claim", "mechanism", 0)], 1
-        )
+        errors = _run_contradiction_detector("belief", [Claim("claim", "mechanism", 0)], 1)
         assert len(errors) == 0
 
 
@@ -200,7 +185,10 @@ class TestDuelEngineWithCachedClaims:
         # Mock the LLM to return predictable claims
         monkeypatch.setattr(
             "learnlock.duel._duel_llm",
-            lambda prompt: "definition|Widgets are reusable UI components\nmechanism|Widgets encapsulate state and rendering",
+            lambda prompt: (
+                "definition|Widgets are reusable UI components\n"
+                "mechanism|Widgets encapsulate state and rendering"
+            ),
         )
 
         engine = DuelEngine(
@@ -222,14 +210,16 @@ class TestDuelEngineWithCachedClaims:
         cid = concepts[0]["id"]
 
         # Pre-cache some claims
-        storage.save_cached_claims(cid, [
-            {"statement": "Cached claim 1", "claim_type": "definition", "claim_index": 0},
-            {"statement": "Cached claim 2", "claim_type": "mechanism", "claim_index": 1},
-        ])
+        storage.save_cached_claims(
+            cid,
+            [
+                {"statement": "Cached claim 1", "claim_type": "definition", "claim_index": 0},
+                {"statement": "Cached claim 2", "claim_type": "mechanism", "claim_index": 1},
+            ],
+        )
 
         # Track if _duel_llm is called (it shouldn't be for claim parsing)
         llm_called = False
-        original = None
 
         def tracking_llm(prompt):
             nonlocal llm_called

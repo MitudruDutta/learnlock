@@ -6,14 +6,8 @@ import select
 import sys
 import warnings
 from pathlib import Path
-from urllib.parse import urlparse
-
-# Suppress all warnings and litellm logging noise
-warnings.filterwarnings("ignore")
-logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
-logging.getLogger("litellm").setLevel(logging.CRITICAL)
-
 from typing import Callable, Optional
+from urllib.parse import urlparse
 
 import typer
 from rich import box
@@ -26,12 +20,18 @@ from rich.table import Table
 from . import __version__, config, llm, scheduler, storage
 from .tools import extract_article, extract_github, extract_pdf, extract_youtube
 
+# Suppress all warnings and litellm logging noise
+warnings.filterwarnings("ignore")
+logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
+logging.getLogger("litellm").setLevel(logging.CRITICAL)
+
 
 def _flush_stdin():
     """Flush any buffered stdin input."""
     if sys.platform == "win32":
         try:
             import msvcrt
+
             while msvcrt.kbhit():
                 msvcrt.getch()
         except Exception:
@@ -39,6 +39,7 @@ def _flush_stdin():
     else:
         try:
             import termios
+
             termios.tcflush(sys.stdin, termios.TCIFLUSH)
         except Exception:
             try:
@@ -47,12 +48,13 @@ def _flush_stdin():
             except Exception:
                 pass
 
+
 # ============ CONSTANTS ============
 BANNER = """[bold cyan]
 ██╗     ███████╗ █████╗ ██████╗ ███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗
 ██║     ██╔════╝██╔══██╗██╔══██╗████╗  ██║██║     ██╔═══██╗██╔════╝██║ ██╔╝
-██║     █████╗  ███████║██████╔╝██╔██╗ ██║██║     ██║   ██║██║     █████╔╝ 
-██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗ 
+██║     █████╗  ███████║██████╔╝██╔██╗ ██║██║     ██║   ██║██║     █████╔╝
+██║     ██╔══╝  ██╔══██║██╔══██╗██║╚██╗██║██║     ██║   ██║██║     ██╔═██╗
 ███████╗███████╗██║  ██║██║  ██║██║ ╚████║███████╗╚██████╔╝╚██████╗██║  ██╗
 ╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝[/bold cyan]
 """
@@ -92,6 +94,7 @@ app = typer.Typer(no_args_is_help=False)
 
 
 # ============ UTILITIES ============
+
 
 def _spinner(msg: str):
     return Progress(
@@ -209,10 +212,11 @@ def _truncate_stored_content(content: str) -> str:
     """Cap stored source size to keep the local DB from growing without bound."""
     if len(content) <= config.MAX_STORED_CONTENT_CHARS:
         return content
-    return content[:config.MAX_STORED_CONTENT_CHARS]
+    return content[: config.MAX_STORED_CONTENT_CHARS]
 
 
 # ============ COMMANDS ============
+
 
 def cmd_add(url: str) -> bool:
     """Add content from URL."""
@@ -285,6 +289,7 @@ def cmd_add(url: str) -> bool:
         segments_json = None
         if result.get("segments"):
             import json
+
             segments_json = json.dumps(result["segments"])
 
         storage.add_source_with_concepts(
@@ -293,7 +298,7 @@ def cmd_add(url: str) -> bool:
             source_type=result["source_type"],
             raw_content=_truncate_stored_content(result["content"]),
             concepts=concepts,
-            segments=segments_json
+            segments=segments_json,
         )
 
         progress.update(task, advance=1, description="Done!")
@@ -358,7 +363,7 @@ def cmd_study() -> bool:
         if memory and memory.get("last_belief"):
             console.print()
             console.print("[dim]Last time you believed:[/dim]")
-            console.print(f"  \"{memory['last_belief']}\"")
+            console.print(f'  "{memory["last_belief"]}"')
             if memory.get("last_errors"):
                 console.print(f"[dim]It failed because:[/dim] {memory['last_errors']}")
             console.print("[dim]Let's see if you still believe it.[/dim]")
@@ -412,12 +417,13 @@ def cmd_study() -> bool:
             if _is_image_path(answer):
                 with _spinner("Reading image..."):
                     from .ocr import extract_text_from_image
+
                     ocr = extract_text_from_image(answer)
                 if "error" in ocr or not ocr["text"].strip():
                     console.print("[yellow]Couldn't read image.[/yellow]")
                     continue
                 answer = ocr["text"]
-                console.print(f"[dim]OCR: \"{answer[:80]}...\"[/dim]")
+                console.print(f'[dim]OCR: "{answer[:80]}..."[/dim]')
 
             # Process
             with _spinner(""):
@@ -443,7 +449,9 @@ def cmd_study() -> bool:
         score = belief_to_score(duel.state)
 
         # Save duel memory
-        errors_str = "; ".join(e.description for e in reveal["errors"][:2]) if reveal["errors"] else ""
+        errors_str = (
+            "; ".join(e.description for e in reveal["errors"][:2]) if reveal["errors"] else ""
+        )
         last_attack = reveal["attacks"][-1] if reveal.get("attacks") else ""
         storage.save_duel_memory(due["id"], reveal["belief"], errors_str, last_attack)
 
@@ -461,7 +469,7 @@ def cmd_study() -> bool:
             score=score,
             covered=None,
             missed=errors_str,
-            feedback=reveal["belief"]
+            feedback=reveal["belief"],
         )
 
         # Update scheduler
@@ -476,7 +484,8 @@ def cmd_study() -> bool:
             remaining = len(scheduler.get_all_due())
             console.print()
             try:
-                cont = console.input(f"[dim]({remaining} more) Enter to continue, 'q' to quit: [/dim]").strip()
+                prompt = f"[dim]({remaining} more) Enter to continue, 'q' to quit: [/dim]"
+                cont = console.input(prompt).strip()
                 if cont.lower() in ("q", "quit", "n"):
                     console.print("[dim]Session ended.[/dim]")
                     return True
@@ -499,6 +508,7 @@ def _show_source_help(due: dict, source_quote: str):
     segments = None
     if source.get("segments"):
         import json
+
         try:
             segments = json.loads(source["segments"])
         except (json.JSONDecodeError, TypeError):
@@ -526,7 +536,8 @@ def _show_source_help(due: dict, source_quote: str):
     # Show link to video at timestamp
     link = get_video_link_at_time(source["url"], timestamp)
     console.print()
-    console.print(f"[dim]Review at[/dim] [yellow]{time_str}[/yellow][dim]:[/dim] [cyan]{link}[/cyan]")
+    msg = f"[dim]Review at[/dim] [yellow]{time_str}[/yellow][dim]:[/dim] [cyan]{link}[/cyan]"
+    console.print(msg)
 
     # Try to extract visual content at that timestamp
     with _spinner("Extracting visual content..."):
@@ -537,8 +548,6 @@ def _show_source_help(due: dict, source_quote: str):
         console.print("[dim]What was shown on screen:[/dim]")
         visual_short = visual[:300] + "..." if len(visual) > 300 else visual
         console.print(f"  [white]{visual_short}[/white]")
-
-
 
 
 def cmd_stats() -> bool:
@@ -557,14 +566,19 @@ def cmd_stats() -> bool:
 
     table.add_row("Sources", str(stats["total_sources"]))
     table.add_row("Concepts", str(stats["total_concepts"]))
-    table.add_row("Due now", f"[cyan]{summary['due_now']}[/cyan]" if summary["due_now"] > 0 else "[dim]0[/dim]")
+    due_cell = f"[cyan]{summary['due_now']}[/cyan]" if summary["due_now"] > 0 else "[dim]0[/dim]"
+    table.add_row("Due now", due_cell)
     table.add_row("Reviews", str(stats["total_reviews"]))
 
     if stats["avg_score"] > 0:
-        score_color = "green" if stats["avg_score"] >= 4 else "yellow" if stats["avg_score"] >= 3 else "red"
+        avg = stats["avg_score"]
+        score_color = "green" if avg >= 4 else "yellow" if avg >= 3 else "red"
         table.add_row("Avg score", f"[{score_color}]{stats['avg_score']}/5[/{score_color}]")
 
-    table.add_row("Mastered", f"[green]{summary['mastered']}[/green]" if summary["mastered"] > 0 else "[dim]0[/dim]")
+    mastered_cell = (
+        f"[green]{summary['mastered']}[/green]" if summary["mastered"] > 0 else "[dim]0[/dim]"
+    )
+    table.add_row("Mastered", mastered_cell)
 
     if stats["skipped_concepts"] > 0:
         table.add_row("Skipped", f"[dim]{stats['skipped_concepts']}[/dim]")
@@ -708,8 +722,18 @@ def cmd_config() -> bool:
     console.print(f"  Groq model: [dim]{config.GROQ_MODEL}[/dim]")
     console.print(f"  Gemini model: [dim]{config.GEMINI_MODEL}[/dim]")
     console.print()
-    console.print("  GROQ_API_KEY: [green]set[/green]" if os.environ.get("GROQ_API_KEY") else "  GROQ_API_KEY: [red]not set[/red]")
-    console.print("  GEMINI_API_KEY: [green]set[/green]" if os.environ.get("GEMINI_API_KEY") else "  GEMINI_API_KEY: [dim]not set (optional)[/dim]")
+    groq_status = (
+        "  GROQ_API_KEY: [green]set[/green]"
+        if os.environ.get("GROQ_API_KEY")
+        else "  GROQ_API_KEY: [red]not set[/red]"
+    )
+    console.print(groq_status)
+    gemini_status = (
+        "  GEMINI_API_KEY: [green]set[/green]"
+        if os.environ.get("GEMINI_API_KEY")
+        else "  GEMINI_API_KEY: [dim]not set (optional)[/dim]"
+    )
+    console.print(gemini_status)
     return True
 
 
@@ -782,6 +806,7 @@ def handle_input(user_input: str) -> bool:
 
 # ============ MAIN LOOP ============
 
+
 def interactive_mode():
     """Run interactive REPL."""
     console.clear()
@@ -811,11 +836,22 @@ def interactive_mode():
 
 # ============ CLI ENTRY POINTS ============
 
+
 @app.command()
 def cli(
     prompt: Optional[str] = typer.Argument(None, help="Command or URL to process"),
-    print_mode: bool = typer.Option(False, "-p", "--print", help="Print output and exit (non-interactive)"),
-    gentle: bool = typer.Option(False, "-g", "--gentle", help="Gentle UI mode (less aggressive feedback)"),
+    print_mode: bool = typer.Option(
+        False,
+        "-p",
+        "--print",
+        help="Print output and exit (non-interactive)",
+    ),
+    gentle: bool = typer.Option(
+        False,
+        "-g",
+        "--gentle",
+        help="Gentle UI mode (less aggressive feedback)",
+    ),
     version: bool = typer.Option(False, "-v", "--version", help="Show version"),
 ):
     """
@@ -837,6 +873,7 @@ def cli(
     # Set gentle mode
     if gentle:
         from .hud import set_gentle_mode
+
         set_gentle_mode(True)
 
     if print_mode and prompt:

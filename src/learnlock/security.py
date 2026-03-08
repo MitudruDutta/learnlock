@@ -24,7 +24,9 @@ _BLOCKED_HOST_SUFFIXES = (
     ".home.arpa",
 )
 _MAX_FILENAME_LENGTH = 80
-_SAFE_FILENAME_CHARS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+_SAFE_FILENAME_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
+)
 
 
 def validate_remote_url(url: str, *, allowed_hosts: tuple[str, ...] | None = None) -> str:

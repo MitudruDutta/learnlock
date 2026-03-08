@@ -123,7 +123,7 @@ class TestProgress:
         assert len(due) == 2  # New concepts are due immediately
 
     def test_update_progress(self, seeded_db):
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         concepts = storage.get_all_concepts()
         cid = concepts[0]["id"]
@@ -202,13 +202,19 @@ class TestCachedClaims:
         concepts = storage.get_all_concepts()
         cid = concepts[0]["id"]
 
-        storage.save_cached_claims(cid, [
-            {"statement": "old", "claim_type": "definition", "claim_index": 0},
-        ])
-        storage.save_cached_claims(cid, [
-            {"statement": "new1", "claim_type": "mechanism", "claim_index": 0},
-            {"statement": "new2", "claim_type": "boundary", "claim_index": 1},
-        ])
+        storage.save_cached_claims(
+            cid,
+            [
+                {"statement": "old", "claim_type": "definition", "claim_index": 0},
+            ],
+        )
+        storage.save_cached_claims(
+            cid,
+            [
+                {"statement": "new1", "claim_type": "mechanism", "claim_index": 0},
+                {"statement": "new2", "claim_type": "boundary", "claim_index": 1},
+            ],
+        )
 
         cached = storage.get_cached_claims(cid)
         assert len(cached) == 2

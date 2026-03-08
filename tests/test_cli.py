@@ -1,6 +1,6 @@
 """Tests for CLI utilities and command routing."""
 
-from learnlock.cli import _is_url, _is_youtube, _is_pdf, _is_github, handle_input
+from learnlock.cli import _is_github, _is_pdf, _is_url, _is_youtube, handle_input
 
 
 class TestUrlDetection:

@@ -4,13 +4,12 @@ Not a tutor. Not a quiz. Not a chatbot.
 An engine that infers what you believe and uses it against you.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
 import json
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
 
-from . import llm
-from . import storage
+from . import llm, storage
 from .security import sanitize_filename
 
 
@@ -214,7 +213,7 @@ def _verify_claims(claims: list[Claim]) -> list[Claim]:
 
     # Pass 2: LLM verification for remaining claims
     claims_str = "\n".join(
-        f"{i+1}. [{c.claim_type}] {c.statement}" for i, c in enumerate(candidates)
+        f"{i + 1}. [{c.claim_type}] {c.statement}" for i, c in enumerate(candidates)
     )
 
     prompt = f"""Review these claims. Keep ONLY conceptual truths.
@@ -387,9 +386,7 @@ BELIEF: [one sentence - their mental model]"""
     return {"belief": belief, "is_non_answer": False}
 
 
-def _run_contradiction_detector(
-    belief: str, claims: list[Claim], turn: int
-) -> list[BeliefError]:
+def _run_contradiction_detector(belief: str, claims: list[Claim], turn: int) -> list[BeliefError]:
     """Check belief against claims. Errors MUST reference claims."""
 
     if not belief or not claims:
@@ -400,7 +397,7 @@ def _run_contradiction_detector(
         2: "Violations and omissions.",
         3: "All violations.",
     }
-    claims_str = "\n".join(f"{c.index+1}. [{c.claim_type}] {c.statement}" for c in claims)
+    claims_str = "\n".join(f"{c.index + 1}. [{c.claim_type}] {c.statement}" for c in claims)
 
     prompt = f"""Check belief against claims.
 
@@ -453,9 +450,7 @@ If no violations: NONE"""
     return errors
 
 
-def _generate_non_answer_attack(
-    concept: str, claims: list[Claim], history: list[str]
-) -> str:
+def _generate_non_answer_attack(concept: str, claims: list[Claim], history: list[str]) -> str:
     """Guide ignorant student toward a claim."""
 
     claim = claims[0] if claims else None
@@ -665,8 +660,7 @@ def export_duel_data(state: BeliefState, concept: str) -> dict:
         "timestamp": datetime.now().isoformat(),
         "ground_truth": state.ground_truth,
         "claims": [
-            {"type": c.claim_type, "statement": c.statement, "index": c.index}
-            for c in state.claims
+            {"type": c.claim_type, "statement": c.statement, "index": c.index} for c in state.claims
         ],
         "final_belief": state.belief,
         "trajectory": [

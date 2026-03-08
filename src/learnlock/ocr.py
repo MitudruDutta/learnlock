@@ -24,31 +24,34 @@ def extract_text_from_image(image_path: str) -> dict:
         file_size = path.stat().st_size
         if file_size > config.MAX_IMAGE_FILE_BYTES:
             limit_mb = config.MAX_IMAGE_FILE_BYTES // (1024 * 1024)
-            return {"error": f"Image too large ({file_size // (1024 * 1024)}MB > {limit_mb}MB limit)"}
+            return {
+                "error": (
+                    f"Image too large ({file_size // (1024 * 1024)}MB > {limit_mb}MB limit)"
+                )
+            }
     except OSError as e:
         return {"error": f"Cannot read file: {e}"}
-    
+
     # Try EasyOCR first (better accuracy, works offline)
     result = _try_easyocr(str(path))
     if "error" not in result:
         return result
-    
+
     # Fallback to Tesseract if available
     result = _try_tesseract(str(path))
     if "error" not in result:
         return result
-    
+
     return {"error": "No OCR engine available. Install: pip install easyocr"}
 
 
 def check_relevance(text: str, concept_name: str, source_quote: str) -> dict:
     """Check if extracted text is relevant to the concept.
-    
     Returns: {"is_relevant": bool, "reason": str}
     """
     if not text or len(text.strip()) < 10:
         return {"is_relevant": False, "reason": "Text too short"}
-    
+
     # Use LLM to check relevance
     try:
         import os
@@ -63,10 +66,11 @@ Reply with ONLY "yes" or "no" followed by a brief reason.
 Example: "yes - discusses the core mechanism"
 Example: "no - unrelated content about cooking"
 """
-        
+
         # Try Groq for quick check
         if os.environ.get("GROQ_API_KEY"):
             import litellm
+
             litellm.suppress_debug_info = True
             response = litellm.completion(
                 model=f"groq/{config.GROQ_MODEL}",
@@ -77,14 +81,17 @@ Example: "no - unrelated content about cooking"
             answer = response.choices[0].message.content.lower().strip()
             is_relevant = answer.startswith("yes")
             return {"is_relevant": is_relevant, "reason": answer}
-        
+
         # No API key - do basic keyword check
         concept_words = set(concept_name.lower().split())
         text_words = set(text.lower().split())
         overlap = concept_words & text_words
         is_relevant = len(overlap) > 0 or len(text) > 50
-        return {"is_relevant": is_relevant, "reason": "keyword match" if is_relevant else "no keywords found"}
-        
+        return {
+            "is_relevant": is_relevant,
+            "reason": "keyword match" if is_relevant else "no keywords found",
+        }
+
     except Exception:
         # On error, assume relevant to not block user
         return {"is_relevant": True, "reason": "check skipped"}
@@ -96,25 +103,25 @@ def _try_easyocr(image_path: str) -> dict:
         import easyocr
     except ImportError:
         return {"error": "easyocr not installed"}
-    
+
     try:
         # Initialize reader (cached after first use)
-        reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+        reader = easyocr.Reader(["en"], gpu=False, verbose=False)
         results = reader.readtext(image_path)
-        
+
         if not results:
             return {"text": "", "confidence": 0.0}
-        
+
         # Combine all detected text
         texts = []
         confidences = []
-        for (bbox, text, conf) in results:
+        for bbox, text, conf in results:
             texts.append(text)
             confidences.append(conf)
-        
+
         combined_text = " ".join(texts)
         avg_confidence = sum(confidences) / len(confidences) if confidences else 0
-        
+
         return {"text": combined_text, "confidence": avg_confidence}
     except Exception as e:
         return {"error": f"EasyOCR failed: {e}"}
@@ -127,14 +134,14 @@ def _try_tesseract(image_path: str) -> dict:
         from PIL import Image
     except ImportError:
         return {"error": "pytesseract not installed"}
-    
+
     try:
         image = Image.open(image_path)
         text = pytesseract.image_to_string(image)
-        
+
         # Tesseract doesn't give confidence easily, estimate from text quality
         confidence = 0.8 if text.strip() else 0.0
-        
+
         return {"text": text.strip(), "confidence": confidence}
     except Exception as e:
         return {"error": f"Tesseract failed: {e}"}
