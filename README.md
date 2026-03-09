@@ -9,7 +9,14 @@
 
 > **The app that argues with you.**
 
+[![PyPI version](https://img.shields.io/pypi/v/learn-lock)](https://pypi.org/project/learn-lock/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/MitudruDutta/learnlock/actions/workflows/test.yml/badge.svg)](https://github.com/MitudruDutta/learnlock/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 LearnLock is a CLI learning tool that uses adversarial Socratic dialogue to expose gaps in your understanding. It doesn't quiz you — it _interrogates_ you.
+
+Feed it a YouTube video, article, PDF, or GitHub repo. It extracts concepts, builds falsifiable claims, then duels you — inferring what you believe, finding contradictions, and attacking your weakest points.
 
 ---
 
@@ -21,12 +28,10 @@ LearnLock is a CLI learning tool that uses adversarial Socratic dialogue to expo
 - [Architecture](#architecture)
 - [The Duel Engine](#the-duel-engine)
 - [Claim Pipeline](#claim-pipeline)
-- [Module Reference](#module-reference)
-- [Database Schema](#database-schema)
-- [Configuration](#configuration)
 - [CLI Commands](#cli-commands)
-- [Known Limitations](#known-limitations)
+- [Configuration](#configuration)
 - [Development](#development)
+- [Known Limitations](#known-limitations)
 - [License](#license)
 
 ---
@@ -35,28 +40,47 @@ LearnLock is a CLI learning tool that uses adversarial Socratic dialogue to expo
 
 ### From PyPI
 
-Install using pip. Requires Python 3.11 or higher.
+```bash
+pip install learn-lock
+```
+
+Requires Python 3.11 or higher.
 
 ### From Source
 
-Clone the repository and install in editable mode.
+```bash
+git clone https://github.com/MitudruDutta/learnlock.git
+cd learnlock
+pip install -e ".[dev]"
+```
 
 ### Optional Dependencies
 
-- `learnlock[ocr]` — EasyOCR for handwritten answer support
-- `learnlock[whisper]` — Whisper fallback for YouTube videos without transcripts
+```bash
+pip install "learn-lock[ocr]"      # EasyOCR for handwritten answer support
+pip install "learn-lock[whisper]"   # Whisper fallback for YouTube without transcripts
+```
 
 ---
 
 ## Quick Start
 
-1. Set your API keys as environment variables:
-   - `GROQ_API_KEY` (required) — Get free at console.groq.com
-   - `GEMINI_API_KEY` (recommended) — Get free at aistudio.google.com
+1. Set your API keys:
 
-2. Launch the CLI by running `learnlock`
+```bash
+export GROQ_API_KEY=your_key        # Required — get free at console.groq.com
+export GEMINI_API_KEY=your_key      # Recommended — get free at aistudio.google.com
+```
 
-3. Add content by pasting a YouTube URL, article link, PDF path, or GitHub repo
+Or create a `.env` file in the project root.
+
+2. Launch:
+
+```bash
+learnlock
+```
+
+3. Paste a YouTube URL, article link, PDF path, or GitHub repo URL
 
 4. Start studying with `/study`
 
@@ -78,22 +102,6 @@ Clone the repository and install in editable mode.
 ## Architecture
 
 ```
-Tools (youtube, article, pdf, github)
-    │
-    ▼
-LLM ──▶ extract concepts & claims
-    │
-    ▼
-Duel Engine ──▶ belief modeling, contradiction detection, interrogation
-    │
-    ├──▶ Scheduler (SM-2) ──▶ Storage (SQLite)
-    │
-    └──▶ HUD ──▶ CLI (claims, belief, attack, reveal)
-```
-
-### Data Flow
-
-```
 Source (YouTube/PDF/Article/GitHub)
     │
     ▼
@@ -103,23 +111,31 @@ Content Extraction (tools/)
 Concept Extraction (llm.py) ──▶ 8-12 concepts with claims
     │
     ▼
-Storage (storage.py) ──▶ SQLite: sources, concepts, progress, duel_memory
+Storage (SQLite + WAL) ──▶ sources, concepts, progress, duel_memory, cached_claims
     │
     ▼
-Scheduler (scheduler.py) ──▶ SM-2 spaced repetition
+Scheduler (SM-2) ──▶ spaced repetition with ease factor + interval
     │
     ▼
-Duel Engine (duel.py) ──▶ Adversarial Socratic interrogation
+Duel Engine (duel.py) ──▶ belief modeling → contradiction detection → interrogation
     │
     ▼
-HUD (hud.py) ──▶ Live visualization of engine state
+HUD (hud.py) ──▶ Rich TUI with claims, belief state, attack panels
 ```
+
+### LLM Pipeline
+
+- **Groq** — fast inference for concept extraction and title generation
+- **Gemini** — quality inference for duel evaluation and vision
+- Centralized `llm.call()` with retry, exponential backoff, and automatic provider fallback
+- Per-provider rate limiting (token bucket)
+- Input sanitization before prompt interpolation
 
 ---
 
 ## The Duel Engine
 
-The cognitive core of LearnLock. Located in `duel.py`.
+The cognitive core. Located in `duel.py`.
 
 ### Philosophy
 
@@ -150,11 +166,13 @@ LearnLock asks: "What do you _believe_ about X, and where is it wrong?"
 
 ### Error Types
 
-- `wrong_mechanism` — Incorrect explanation of how something works
-- `missing_mechanism` — Omitted critical mechanism
-- `boundary_error` — Wrong about limitations or scope
-- `conflation` — Confused two distinct concepts
-- `superficial` — Surface-level understanding without depth
+| Type | Description |
+|------|-------------|
+| `wrong_mechanism` | Incorrect explanation of how something works |
+| `missing_mechanism` | Omitted critical mechanism |
+| `boundary_error` | Wrong about limitations or scope |
+| `conflation` | Confused two distinct concepts |
+| `superficial` | Surface-level understanding without depth |
 
 ---
 
@@ -172,222 +190,86 @@ Claims are the epistemic foundation. The duel is only as fair as the claims.
 
 ### Claim Types
 
-- `definition` — What the concept is
-- `mechanism` — How it works internally
-- `requirement` — What it needs to function
-- `boundary` — What it cannot do or where it fails
+| Type | Purpose |
+|------|---------|
+| `definition` | What the concept is |
+| `mechanism` | How it works internally |
+| `requirement` | What it needs to function |
+| `boundary` | What it cannot do or where it fails |
 
-### Good vs Bad Claims
+### Claim Caching
 
-Bad claims get rejected:
-
-- "The server processes requests" (tautology)
-- "It handles security" (blurry)
-- "Must be running to work" (stateful)
-
-Good claims survive:
-
-- "Validates request payloads against a JSON schema"
-- "Enforces authentication via JWT token verification"
-- "Uses Python type hints for automatic request validation"
-
----
-
-## Module Reference
-
-### duel.py — The Engine
-
-Core dataclasses: `Claim`, `BeliefError`, `BeliefSnapshot`, `BeliefState`
-
-Main class `DuelEngine` provides:
-
-- `process(user_input)` — Process response, return attack or reveal
-- `get_reveal()` — Get final state with claims, errors, trajectory
-- `get_claims()` — Get parsed claims
-- `finished` — Boolean indicating duel completion
-
-Helper functions:
-
-- `create_duel()` — Factory for DuelEngine
-- `belief_to_score()` — Convert final state to 1-5 score
-- `export_duel_data()` — Export for research/training
-- `save_duel_data()` — Persist to disk
-
-### hud.py — Visualization
-
-- `set_gentle_mode()` — Toggle between brutal and gentle UI
-- `render_duel_state()` — Render claims panel, belief panel, attack target
-- `render_attack()` — Render interrogation panel with question
-- `render_reveal()` — Render final verdict with trajectory and claim satisfaction
-
-### cli.py — Interface
-
-Entry point `main()` launches the REPL.
-
-Key commands routed through `handle_input()`:
-
-- `cmd_study()` — Main duel session loop
-- `cmd_add()` — Add content from URL
-- `cmd_stats()` — Display progress statistics
-- `cmd_list()` — List all concepts
-- `cmd_due()` — Show due concepts
-
-### storage.py — Persistence
-
-SQLite database with tables for sources, concepts, explanations, progress, and duel_memory.
-
-Key functions:
-
-- `add_source()` / `get_source()` — Source CRUD
-- `add_concept()` / `get_concept()` — Concept CRUD
-- `get_due_concepts()` — Query due items
-- `save_duel_memory()` / `get_duel_memory()` — Persist last duel state per concept
-- `update_progress()` — Update SM-2 scheduling data
-
-### scheduler.py — SM-2 Spaced Repetition
-
-Implements SM-2 algorithm for scheduling reviews.
-
-- `update_after_review()` — Update ease factor and interval after scoring
-- `get_next_due()` — Get single next due concept
-- `get_all_due()` — Get all due concepts
-- `get_study_summary()` — Aggregate statistics
-
-### llm.py — LLM Interface
-
-Dual-provider setup: Groq for extraction, Gemini for evaluation.
-
-- `extract_concepts()` — Extract concepts with claims from content
-- `evaluate_explanation()` — Score user explanation (legacy, replaced by duel)
-- `generate_title()` — Generate topic-based title from content
-
-### tools/ — Content Extraction
-
-**youtube.py**
-
-- `extract_youtube()` — Get transcript with timestamps
-- `find_timestamp_for_text()` — Find timestamp for concept
-- `extract_frame_at_timestamp()` — Extract and describe frame with Gemini Vision
-- Whisper fallback for videos without transcripts
-
-**article.py**
-
-- `extract_article()` — Extract text from web articles using trafilatura
-
-**pdf.py**
-
-- `extract_pdf()` — Extract text from local or remote PDFs using pymupdf
-
-**github.py**
-
-- `extract_github()` — Extract README from GitHub repositories
-
-### ocr.py — Image Input
-
-- `extract_text_from_image()` — OCR using EasyOCR or Tesseract
-- `check_relevance()` — Verify extracted text relates to concept
-
----
-
-## Database Schema
-
-### sources
-
-Stores raw content from URLs. Fields: id, url, title, source_type, raw_content, segments (JSON for YouTube timestamps), created_at
-
-### concepts
-
-Stores extracted concepts. Fields: id, source_id, name, source_quote (ground truth), question, skipped, created_at
-
-### explanations
-
-Stores user responses and scores. Fields: id, concept_id, text, score, covered, missed, feedback, created_at
-
-### progress
-
-SM-2 scheduling data. Fields: id, concept_id, ease_factor, interval_days, due_date, review_count, last_score
-
-### duel_memory
-
-Persists last duel state for returning users. Fields: id, concept_id, last_belief, last_errors, last_attack, updated_at
-
----
-
-## Configuration
-
-All settings configurable via environment variables.
-
-### Paths
-
-- `LEARNLOCK_DATA_DIR` — Data directory (default: ~/.learnlock)
-
-### Models
-
-- `LEARNLOCK_GROQ_MODEL` — Groq model for extraction
-- `LEARNLOCK_GEMINI_MODEL` — Gemini model for evaluation and vision
-
-### SM-2 Parameters
-
-- `LEARNLOCK_SM2_INITIAL_EASE` — Starting ease factor (default: 2.5)
-- `LEARNLOCK_SM2_INITIAL_INTERVAL` — Starting interval in days (default: 1.0)
-- `LEARNLOCK_SM2_MIN_EASE` — Minimum ease factor (default: 1.3)
-- `LEARNLOCK_SM2_MAX_INTERVAL` — Maximum interval in days (default: 180)
-
-### Extraction
-
-- `LEARNLOCK_MIN_CONCEPTS` — Minimum concepts per source (default: 8)
-- `LEARNLOCK_MAX_CONCEPTS` — Maximum concepts per source (default: 12)
-- `LEARNLOCK_CONTENT_MAX_CHARS` — Max content length for processing (default: 8000)
+Claims are parsed once at ingest time and cached in the database (`cached_claims` table). Subsequent duels load from cache instead of re-parsing, making study sessions faster and deterministic.
 
 ---
 
 ## CLI Commands
 
-| Command          | Description                          |
-| ---------------- | ------------------------------------ |
-| `/add <url>`     | Add YouTube, article, PDF, or GitHub |
-| `/study`         | Start duel session                   |
-| `/stats`         | View progress statistics             |
-| `/list`          | List all concepts                    |
-| `/due`           | Show concepts due for review         |
-| `/skip <name>`   | Skip a concept                       |
-| `/unskip <name>` | Restore skipped concept              |
-| `/config`        | Show current configuration           |
-| `/help`          | Show help                            |
-| `/quit`          | Exit                                 |
+| Command | Description |
+|---------|-------------|
+| `/add <url>` | Add YouTube, article, PDF, or GitHub |
+| `/study` | Start duel session |
+| `/stats` | View progress statistics |
+| `/list` | List all concepts |
+| `/due` | Show concepts due for review |
+| `/skip <name>` | Skip a concept |
+| `/unskip <name>` | Restore skipped concept |
+| `/config` | Show current configuration |
+| `/help` | Show help |
+| `/quit` | Exit |
 
 ### Flags
 
-- `--gentle` or `-g` — Gentle UI mode (minimal, supportive feedback)
-- `--version` or `-v` — Show version
+| Flag | Description |
+|------|-------------|
+| `-g`, `--gentle` | Gentle UI mode (supportive feedback) |
+| `-v`, `--version` | Show version |
+| `-p`, `--print` | Print output and exit (non-interactive) |
 
 ---
 
-## Known Limitations
+## Configuration
 
-### 1. Claim Quality (Epistemic Risk)
+All settings via environment variables or `.env` file.
 
-Claims are LLM-generated. Despite three-pass filtering, semantic drift can occur. A source saying "enforces authentication" might become "handles security" — technically related but unfalsifiable.
+### API Keys
 
-Mitigation: Pattern filters and sharpness checks reduce but don't eliminate this risk.
+| Variable | Required | Source |
+|----------|----------|--------|
+| `GROQ_API_KEY` | Yes | [console.groq.com](https://console.groq.com) |
+| `GEMINI_API_KEY` | Recommended | [aistudio.google.com](https://aistudio.google.com) |
 
-### 2. Hallucinated Errors (Moral Risk)
+### Models
 
-The contradiction detector can invent violations. A correct answer might be flagged as "missing_mechanism" due to LLM drift, causing unfair attacks.
+| Variable | Default |
+|----------|---------|
+| `LEARNLOCK_GROQ_MODEL` | `openai/gpt-oss-120b` |
+| `LEARNLOCK_GEMINI_MODEL` | `gemini-2.0-flash` |
 
-Mitigation: Graded harshness (forgiving on turn 1), claim-index validation (errors must reference real claims). Still possible.
+### SM-2 Parameters
 
-### 3. UI Density
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LEARNLOCK_SM2_INITIAL_EASE` | `2.5` | Starting ease factor |
+| `LEARNLOCK_SM2_INITIAL_INTERVAL` | `1.0` | Starting interval (days) |
+| `LEARNLOCK_SM2_MIN_EASE` | `1.3` | Minimum ease factor |
+| `LEARNLOCK_SM2_MAX_INTERVAL` | `180` | Maximum interval (days) |
 
-The HUD displays claims, belief, attack target, and interrogation panel simultaneously. Powerful for power users, overwhelming for beginners.
+### Extraction
 
-Mitigation: `--gentle` flag provides minimal UI with supportive framing.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LEARNLOCK_MIN_CONCEPTS` | `8` | Min concepts per source |
+| `LEARNLOCK_MAX_CONCEPTS` | `12` | Max concepts per source |
+| `LEARNLOCK_CONTENT_MAX_CHARS` | `8000` | Max content length |
 
-### 4. No Confidence Signals
+### LLM Tuning
 
-Errors are binary. The engine cannot express "I might be wrong here."
-
-Future: Multi-pass agreement, confidence scores, human-in-the-loop for high-stakes content.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LEARNLOCK_LLM_MIN_CALL_INTERVAL` | `0.5` | Min seconds between LLM calls |
+| `LEARNLOCK_LLM_MAX_RETRIES` | `2` | Max retries per provider |
+| `LEARNLOCK_LLM_BACKOFF_BASE` | `1.0` | Exponential backoff base (seconds) |
 
 ---
 
@@ -395,40 +277,82 @@ Future: Multi-pass agreement, confidence scores, human-in-the-loop for high-stak
 
 ### Setup
 
-Clone the repo and install with dev dependencies using pip editable mode with the `[dev]` extra.
+```bash
+git clone https://github.com/MitudruDutta/learnlock.git
+cd learnlock
+pip install -e ".[dev]"
+```
 
 ### Testing
 
-Run pytest from the project root.
+```bash
+pytest                    # Run all 138 tests
+pytest -v                 # Verbose output
+pytest tests/test_duel.py # Run specific test file
+```
 
 ### Linting
 
-Run ruff check on the src directory.
+```bash
+ruff check src/
+```
 
 ### Building
 
-Use python -m build to create distribution packages.
+```bash
+python -m build
+```
 
-### File Structure
+### Project Structure
 
 ```
 src/learnlock/
-├── __init__.py
-├── cli.py          # CLI interface and command routing
-├── config.py       # Environment-based configuration
-├── duel.py         # Duel Engine (core logic)
-├── hud.py          # Rich-based visualization
-├── llm.py          # LLM interface (Groq/Gemini)
-├── ocr.py          # Image text extraction
-├── scheduler.py    # SM-2 spaced repetition
-├── storage.py      # SQLite persistence
+├── __init__.py      # Version from importlib.metadata
+├── cli.py           # CLI interface and command routing
+├── config.py        # Environment-based configuration with validation
+├── duel.py          # Duel Engine — belief modeling, contradiction, interrogation
+├── hud.py           # Rich TUI — claims, belief, attack, reveal panels
+├── llm.py           # LLM interface — call(), retry, fallback, sanitization
+├── ocr.py           # Image text extraction (EasyOCR/Tesseract)
+├── scheduler.py     # SM-2 spaced repetition
+├── security.py      # URL validation, filename sanitization, safe redirects
+├── storage.py       # SQLite persistence with lazy init and claim caching
+├── py.typed         # PEP 561 type marker
 └── tools/
     ├── __init__.py
-    ├── youtube.py  # YouTube extraction with timestamps
-    ├── article.py  # Web article extraction
-    ├── pdf.py      # PDF extraction
-    └── github.py   # GitHub README extraction
+    ├── youtube.py   # YouTube transcript + timestamp extraction
+    ├── article.py   # Web article extraction (trafilatura)
+    ├── pdf.py       # PDF extraction (pymupdf)
+    └── github.py    # GitHub README extraction
+tests/
+├── conftest.py      # Fixtures: tmp_db, mock_llm, seeded_db
+├── test_cli.py      # CLI command routing and input detection
+├── test_duel.py     # Duel engine, belief scoring, claim verification
+├── test_llm.py      # JSON parsing, sanitization, concept extraction
+├── test_scheduler.py # SM-2 algorithm, due queries, intervals
+├── test_storage.py  # All CRUD ops, migrations, caching
+└── test_tools.py    # YouTube URL normalization, timestamp search
 ```
+
+---
+
+## Known Limitations
+
+### Claim Quality (Epistemic Risk)
+
+Claims are LLM-generated. Despite three-pass filtering, semantic drift can occur — a source saying "enforces authentication" might become "handles security." Pattern filters reduce but don't eliminate this.
+
+### Hallucinated Errors (Moral Risk)
+
+The contradiction detector can invent violations. A correct answer might be flagged as `missing_mechanism` due to LLM drift. Graded harshness and claim-index validation mitigate but don't prevent this.
+
+### No Confidence Signals
+
+Errors are currently binary. The engine cannot express "I might be wrong here." Confidence scoring is planned for a future release.
+
+### UI Density
+
+The HUD shows claims, belief, attack target, and interrogation simultaneously. Use `--gentle` for a minimal, supportive experience.
 
 ---
 
