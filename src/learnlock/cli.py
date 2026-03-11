@@ -68,6 +68,11 @@ HELP_TEXT = """
   [cyan]/due[/cyan]              Show what's due
   [cyan]/skip[/cyan] <name>      Skip a concept
   [cyan]/unskip[/cyan] <name>    Restore skipped concept
+  [cyan]/claims[/cyan] <name>    View/edit/delete claims for a concept
+  [cyan]/delete[/cyan] <source>  Delete a source and its concepts
+  [cyan]/export[/cyan] [file]    Export all data to JSON
+  [cyan]/import[/cyan] <file>    Import and merge a JSON backup
+  [cyan]/visual[/cyan] [name]    Inspect the linked YouTube frame on demand
   [cyan]/config[/cyan]           Show configuration
   [cyan]/clear[/cyan]            Clear screen
   [cyan]/help[/cyan]             Show this help
@@ -91,6 +96,7 @@ HELP_TEXT = """
 
 console = Console()
 app = typer.Typer(no_args_is_help=False)
+_last_visual_context: dict | None = None
 
 
 # ============ UTILITIES ============
@@ -213,6 +219,142 @@ def _truncate_stored_content(content: str) -> str:
     if len(content) <= config.MAX_STORED_CONTENT_CHARS:
         return content
     return content[: config.MAX_STORED_CONTENT_CHARS]
+
+
+def _all_concepts_for_lookup() -> list[dict]:
+    """Include skipped concepts so admin commands can still target them."""
+    concepts = {concept["id"]: concept for concept in storage.get_all_concepts()}
+    for concept in storage.get_skipped_concepts():
+        concepts.setdefault(concept["id"], concept)
+    return list(concepts.values())
+
+
+def _match_records(records: list[dict], query: str, label_key: str) -> list[dict]:
+    """Resolve numeric ids first, then exact names, then fuzzy substring matches."""
+    query = query.strip()
+    if not query:
+        return []
+
+    if query.isdigit():
+        exact_id = [record for record in records if int(record["id"]) == int(query)]
+        if exact_id:
+            return exact_id
+
+    lowered = query.casefold()
+    exact = [record for record in records if str(record[label_key]).casefold() == lowered]
+    if exact:
+        return exact
+
+    return [record for record in records if lowered in str(record[label_key]).casefold()]
+
+
+def _resolve_source(query: str) -> dict | None:
+    matches = _match_records(storage.get_all_sources(), query, "title")
+    if not matches:
+        console.print(f"[red]No source matching '{query}'[/red]")
+        return None
+
+    if len(matches) > 1:
+        console.print("[yellow]Multiple matches:[/yellow]")
+        for match in matches:
+            concepts = storage.get_concepts_for_source(match["id"])
+            console.print(
+                f"  [dim]{match['id']}.[/dim] {match['title']} "
+                f"[dim]({len(concepts)} concepts)[/dim]"
+            )
+        console.print("[dim]Use the numeric source id to disambiguate.[/dim]")
+        return None
+
+    return matches[0]
+
+
+def _resolve_concept(query: str) -> dict | None:
+    matches = _match_records(_all_concepts_for_lookup(), query, "name")
+    if not matches:
+        console.print(f"[red]No concept matching '{query}'[/red]")
+        return None
+
+    if len(matches) > 1:
+        console.print("[yellow]Multiple matches:[/yellow]")
+        for match in matches:
+            source_title = match.get("source_title", "Unknown source")
+            console.print(
+                f"  [dim]{match['id']}.[/dim] {match['name']} [dim]({source_title})[/dim]"
+            )
+        console.print("[dim]Use the numeric concept id to disambiguate.[/dim]")
+        return None
+
+    return matches[0]
+
+
+def _time_label(seconds: float) -> str:
+    mins = int(seconds) // 60
+    secs = int(seconds) % 60
+    return f"{mins}:{secs:02d}"
+
+
+def _visual_context_for_source(
+    source: dict,
+    concept_name: str,
+    source_quote: str,
+) -> dict | None:
+    if source["source_type"] != "youtube":
+        return None
+
+    segments = None
+    if source.get("segments"):
+        import json
+
+        try:
+            segments = json.loads(source["segments"])
+        except (json.JSONDecodeError, TypeError):
+            segments = None
+
+    if not segments:
+        return None
+
+    from .tools.youtube import find_timestamp_for_text, get_video_link_at_time
+
+    timestamp = find_timestamp_for_text(segments, source_quote)
+    if timestamp is None:
+        return None
+
+    return {
+        "concept_name": concept_name,
+        "source_id": source["id"],
+        "source_title": source["title"],
+        "source_url": source["url"],
+        "source_quote": source_quote,
+        "timestamp": timestamp,
+        "link": get_video_link_at_time(source["url"], timestamp),
+    }
+
+
+def _ensure_claim_cache(concept: dict) -> list[dict] | None:
+    claims = storage.get_cached_claims(concept["id"])
+    if claims:
+        return claims
+
+    if not _check_api_keys(require_any=True):
+        return None
+
+    from .duel import get_or_create_claims
+
+    ground_truth = concept.get("ground_truth") or concept["source_quote"]
+    with _spinner("Generating claims..."):
+        generated = get_or_create_claims(ground_truth, concept["id"])
+
+    if not generated:
+        return None
+
+    return storage.get_cached_claims(concept["id"]) or [
+        {
+            "statement": claim.statement,
+            "claim_type": claim.claim_type,
+            "claim_index": claim.index,
+        }
+        for claim in generated
+    ]
 
 
 # ============ COMMANDS ============
@@ -499,55 +641,24 @@ def cmd_study() -> bool:
 
 
 def _show_source_help(due: dict, source_quote: str):
-    """Show timestamp link and visual content for failed concepts (YouTube only)."""
+    """Show timestamp link for failed YouTube concepts. Visual extraction is opt-in."""
+    global _last_visual_context
+
     source = storage.get_source(due["source_id"])
-    if not source or source["source_type"] != "youtube":
+    if not source:
+        return
+    context = _visual_context_for_source(source, due["name"], source_quote)
+    if not context:
         return
 
-    # Get segments
-    segments = None
-    if source.get("segments"):
-        import json
-
-        try:
-            segments = json.loads(source["segments"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    if not segments:
-        return
-
-    # Find timestamp for this concept
-    from .tools.youtube import (
-        extract_frame_at_timestamp,
-        find_timestamp_for_text,
-        get_video_link_at_time,
-    )
-
-    timestamp = find_timestamp_for_text(segments, source_quote)
-    if timestamp is None:
-        return
-
-    # Format timestamp as MM:SS
-    mins = int(timestamp) // 60
-    secs = int(timestamp) % 60
-    time_str = f"{mins}:{secs:02d}"
-
-    # Show link to video at timestamp
-    link = get_video_link_at_time(source["url"], timestamp)
+    _last_visual_context = context
+    time_str = _time_label(context["timestamp"])
     console.print()
-    msg = f"[dim]Review at[/dim] [yellow]{time_str}[/yellow][dim]:[/dim] [cyan]{link}[/cyan]"
-    console.print(msg)
-
-    # Try to extract visual content at that timestamp
-    with _spinner("Extracting visual content..."):
-        visual = extract_frame_at_timestamp(source["url"], timestamp)
-
-    if visual:
-        console.print()
-        console.print("[dim]What was shown on screen:[/dim]")
-        visual_short = visual[:300] + "..." if len(visual) > 300 else visual
-        console.print(f"  [white]{visual_short}[/white]")
+    console.print(
+        f"[dim]Review at[/dim] [yellow]{time_str}[/yellow]"
+        f"[dim]:[/dim] [cyan]{context['link']}[/cyan]"
+    )
+    console.print("[dim]Type /visual to inspect the on-screen frame for this moment.[/dim]")
 
 
 def cmd_stats() -> bool:
@@ -712,6 +823,285 @@ def cmd_unskip(name: str) -> bool:
     return True
 
 
+def cmd_delete(name: str) -> bool:
+    """Delete a source and all its concepts."""
+    name = name.strip()
+    if not name:
+        console.print("[yellow]Usage: /delete <source-title>[/yellow]")
+        return True
+
+    source = _resolve_source(name)
+    if source is None:
+        return True
+    concepts = storage.get_concepts_for_source(source["id"])
+    console.print(
+        f"[yellow]Delete[/yellow] {source['title']} "
+        f"[dim]({len(concepts)} concepts)?[/dim]"
+    )
+    try:
+        confirm = Prompt.ask(
+            "[dim]Type 'yes' to confirm[/dim]", console=console
+        )
+    except (EOFError, KeyboardInterrupt):
+        console.print("[dim]Cancelled.[/dim]")
+        return True
+
+    if confirm.strip().lower() != "yes":
+        console.print("[dim]Cancelled.[/dim]")
+        return True
+
+    removed = storage.delete_source(source["id"])
+    console.print(
+        f"[green]OK[/green] Deleted {source['title']} "
+        f"and {removed} concepts."
+    )
+    return True
+
+
+def cmd_claims(name: str) -> bool:
+    """View, edit, or delete claims for a concept."""
+    name = name.strip()
+    if not name:
+        console.print("[yellow]Usage: /claims <concept-name>[/yellow]")
+        return True
+
+    concept = _resolve_concept(name)
+    if concept is None:
+        return True
+    claims = _ensure_claim_cache(concept)
+
+    if not claims:
+        console.print(
+            f"[red]Couldn't prepare claims for {concept['name']}.[/red]"
+        )
+        return True
+
+    # Display claims
+    table = Table(
+        title=f"Claims: {concept['name']}",
+        box=box.ROUNDED,
+        border_style="cyan",
+    )
+    table.add_column("#", width=3)
+    table.add_column("Type", width=12)
+    table.add_column("Statement", width=55)
+
+    for c in claims:
+        table.add_row(
+            str(c["claim_index"] + 1),
+            c["claim_type"],
+            c["statement"],
+        )
+    console.print(table)
+
+    console.print()
+    console.print("[dim]Actions:[/dim]")
+    console.print("  [cyan]edit <#> <new statement>[/cyan]")
+    console.print("  [cyan]delete <#>[/cyan]")
+    console.print("  [cyan]done[/cyan] (or just press Enter)")
+    console.print()
+
+    while True:
+        try:
+            action = console.input("[bold]claims> [/bold]").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        if not action or action.lower() == "done":
+            break
+
+        if action.lower().startswith("edit "):
+            parts = action[5:].split(maxsplit=1)
+            if len(parts) < 2:
+                console.print(
+                    "[yellow]Usage: edit <#> <new statement>[/yellow]"
+                )
+                continue
+            try:
+                idx = int(parts[0]) - 1
+            except ValueError:
+                console.print("[red]Invalid claim number.[/red]")
+                continue
+            new_stmt = parts[1].strip()
+            if len(new_stmt) < 10:
+                console.print("[red]Statement too short.[/red]")
+                continue
+            if storage.update_cached_claim(
+                concept["id"], idx, new_stmt
+            ):
+                console.print(f"[green]OK[/green] Claim {idx + 1} updated.")
+            else:
+                console.print(f"[red]Claim {idx + 1} not found.[/red]")
+
+        elif action.lower().startswith("delete "):
+            try:
+                idx = int(action[7:].strip()) - 1
+            except ValueError:
+                console.print("[red]Invalid claim number.[/red]")
+                continue
+
+            # Don't allow deleting the last claim
+            current = storage.get_cached_claims(concept["id"])
+            if current and len(current) <= 1:
+                console.print(
+                    "[red]Can't delete the last claim.[/red]"
+                )
+                continue
+
+            if storage.delete_cached_claim(concept["id"], idx):
+                console.print(
+                    f"[green]OK[/green] Claim {idx + 1} deleted."
+                )
+            else:
+                console.print(f"[red]Claim {idx + 1} not found.[/red]")
+        else:
+            console.print("[dim]Unknown action. Try edit, delete, or done.[/dim]")
+
+    return True
+
+
+def cmd_export(path: str) -> bool:
+    """Export all data to a JSON file."""
+    import json
+
+    path = path.strip()
+    if not path:
+        path = "learnlock-export.json"
+
+    data = storage.export_all_data()
+    out = Path(_expand_user_path(path)).resolve()
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except OSError as e:
+        console.print(f"[red]Error writing export: {e}[/red]")
+        return True
+
+    console.print(f"[green]OK[/green] Exported to {out}")
+    console.print(
+        f"[dim]{len(data['sources'])} sources, "
+        f"{len(data['concepts'])} concepts[/dim]"
+    )
+    return True
+
+
+def cmd_import(path: str) -> bool:
+    """Import data from a JSON export file."""
+    import json
+
+    path = path.strip()
+    if not path:
+        console.print("[yellow]Usage: /import <file.json>[/yellow]")
+        return True
+
+    resolved = Path(_expand_user_path(path))
+    if not resolved.exists() or resolved.is_dir():
+        console.print(f"[red]File not found: {resolved}[/red]")
+        return True
+
+    try:
+        with open(resolved, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        console.print(f"[red]Error reading file: {e}[/red]")
+        return True
+
+    try:
+        result = storage.import_all_data(data)
+    except storage.ImportValidationError as e:
+        console.print(f"[red]{e}[/red]")
+        return True
+    except Exception as e:
+        console.print(f"[red]Import failed: {e}[/red]")
+        return True
+
+    console.print(
+        f"[green]OK[/green] Imported {result['sources_added']} sources, "
+        f"{result['concepts_added']} concepts"
+    )
+    if result["sources_merged"] > 0 or result["concepts_merged"] > 0:
+        console.print(
+            f"[dim]Merged {result['sources_merged']} existing sources and "
+            f"{result['concepts_merged']} existing concepts[/dim]"
+        )
+    if result["explanations_added"] > 0:
+        console.print(
+            f"[dim]Added {result['explanations_added']} explanation records[/dim]"
+        )
+    if result["duel_memories_updated"] > 0 or result["cached_claim_sets_updated"] > 0:
+        console.print(
+            f"[dim]Updated {result['duel_memories_updated']} duel memories and "
+            f"{result['cached_claim_sets_updated']} claim sets[/dim]"
+        )
+    return True
+
+
+def cmd_visual(name: str = "") -> bool:
+    """Inspect the source frame for the last reviewed or selected YouTube concept."""
+    global _last_visual_context
+
+    name = name.strip()
+    context = None
+
+    if name:
+        concept = _resolve_concept(name)
+        if concept is None:
+            return True
+        source = storage.get_source(concept["source_id"])
+        if not source:
+            console.print("[red]Source not found for that concept.[/red]")
+            return True
+        context = _visual_context_for_source(
+            source,
+            concept["name"],
+            concept["source_quote"],
+        )
+    else:
+        context = _last_visual_context
+
+    if not context:
+        console.print(
+            "[yellow]No visual context available. Use /visual after a YouTube duel "
+            "or pass a YouTube concept name/id.[/yellow]"
+        )
+        return True
+
+    if not os.environ.get("GEMINI_API_KEY"):
+        console.print("[red]GEMINI_API_KEY not set.[/red]")
+        console.print("[dim]Visual frame descriptions require Gemini Vision.[/dim]")
+        return True
+
+    from .tools.youtube import extract_frame_at_timestamp
+
+    with _spinner("Inspecting video frame..."):
+        description = extract_frame_at_timestamp(
+            context["source_url"],
+            context["timestamp"],
+        )
+
+    if not description:
+        console.print("[red]Couldn't extract visual context for that moment.[/red]")
+        console.print(f"[dim]Try opening the link directly:[/dim] [cyan]{context['link']}[/cyan]")
+        return True
+
+    _last_visual_context = context
+    console.print()
+    console.print(
+        Panel(
+            description,
+            title=(
+                f"[bold]Visual Context[/bold] - {context['concept_name']} @ "
+                f"{_time_label(context['timestamp'])}"
+            ),
+            border_style="yellow",
+            box=box.ROUNDED,
+        )
+    )
+    console.print(f"[dim]Source:[/dim] [cyan]{context['link']}[/cyan]")
+    return True
+
+
 def cmd_config() -> bool:
     """Show configuration."""
     console.print("[bold]Configuration:[/bold]")
@@ -761,6 +1151,11 @@ COMMANDS: dict[str, Callable] = {
     "due": lambda args: cmd_due(),
     "skip": lambda args: cmd_skip(args),
     "unskip": lambda args: cmd_unskip(args),
+    "claims": lambda args: cmd_claims(args),
+    "delete": lambda args: cmd_delete(args),
+    "export": lambda args: cmd_export(args),
+    "import": lambda args: cmd_import(args),
+    "visual": lambda args: cmd_visual(args),
     "config": lambda args: cmd_config(),
     "help": lambda args: cmd_help(),
     "h": lambda args: cmd_help(),
@@ -870,11 +1265,10 @@ def cli(
     except OSError:
         pass
 
-    # Set gentle mode
-    if gentle:
-        from .hud import set_gentle_mode
+    from .hud import set_gentle_mode
 
-        set_gentle_mode(True)
+    auto_gentle = storage.get_stats()["successful_reviews"] < 5
+    set_gentle_mode(gentle or auto_gentle)
 
     if print_mode and prompt:
         # Non-interactive mode

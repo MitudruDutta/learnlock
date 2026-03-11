@@ -31,6 +31,7 @@ class BeliefError:
     severity: int
     violated_claim: str
     claim_index: int
+    confidence: float = 1.0
 
 
 @dataclass
@@ -60,6 +61,8 @@ class BeliefState:
 # Duel uses higher temperature for more probing questions
 _DUEL_TEMPERATURE = 0.7
 _DUEL_MAX_TOKENS = 500
+LOW_CONFIDENCE_THRESHOLD = 0.7
+MIN_ACTIONABLE_CONFIDENCE = 0.4
 
 
 def _duel_llm(prompt: str) -> str:
@@ -409,10 +412,11 @@ CLAIMS:
 {harshness.get(turn, harshness[3])}
 
 For EACH violation, output:
-CLAIM_NUM|ERROR_TYPE|DESCRIPTION|SEVERITY
+CLAIM_NUM|ERROR_TYPE|DESCRIPTION|SEVERITY|CONFIDENCE
 
 Types: wrong_mechanism, missing_mechanism, boundary_error, conflation, superficial
 Severity: 1=minor, 2=significant, 3=critical
+Confidence: 0.0 to 1.0 (how sure you are this is a real error)
 
 If no violations: NONE"""
 
@@ -431,10 +435,26 @@ If no violations: NONE"""
             idx = int(parts[0]) - 1
             if idx < 0 or idx >= len(claims):
                 continue  # Discard errors without valid claim
-            severity = int(parts[-1])
-            description = "|".join(parts[2:-1]).strip()
+
+            # Last part might be confidence (float), second-to-last is severity
+            # Format: CLAIM|TYPE|DESC...|SEVERITY or CLAIM|TYPE|DESC...|SEVERITY|CONF
+            conf = 1.0
+            try:
+                maybe_conf = float(parts[-1])
+                if 0.0 <= maybe_conf <= 1.0 and len(parts) >= 5:
+                    conf = maybe_conf
+                    severity = int(parts[-2])
+                    description = "|".join(parts[2:-2]).strip()
+                else:
+                    severity = int(parts[-1])
+                    description = "|".join(parts[2:-1]).strip()
+            except ValueError:
+                severity = int(parts[-1])
+                description = "|".join(parts[2:-1]).strip()
+
             if not description:
                 continue
+
             errors.append(
                 BeliefError(
                     type=parts[1].lower(),
@@ -442,6 +462,7 @@ If no violations: NONE"""
                     severity=min(3, max(1, severity)),
                     violated_claim=claims[idx].statement,
                     claim_index=idx,
+                    confidence=conf,
                 )
             )
         except (ValueError, IndexError):
@@ -480,7 +501,9 @@ def _run_interrogator(
     if not errors:
         return None
 
-    target = max(errors, key=lambda e: e.severity)
+    target = primary_error(errors)
+    if target is None:
+        return None
     history_str = "\n".join(f"- {q}" for q in history) if history else "None"
 
     prompt = f"""Corner this student.
@@ -504,6 +527,62 @@ Reply with ONLY the question."""
     return q or None
 
 
+def effective_error_severity(error: BeliefError) -> int:
+    """Down-weight low-confidence findings before they affect product behavior."""
+    if error.confidence < MIN_ACTIONABLE_CONFIDENCE:
+        return 0
+    if error.confidence < LOW_CONFIDENCE_THRESHOLD:
+        return max(1, error.severity - 1)
+    return error.severity
+
+
+def actionable_errors(errors: list[BeliefError]) -> list[BeliefError]:
+    """Errors strong enough to drive interrogation and scoring."""
+    return [error for error in errors if effective_error_severity(error) > 0]
+
+
+def primary_error(errors: list[BeliefError]) -> BeliefError | None:
+    """Select the strongest actionable error, preferring higher confidence on ties."""
+    if not errors:
+        return None
+    candidates = actionable_errors(errors)
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda error: (
+            effective_error_severity(error),
+            error.confidence,
+            error.severity,
+        ),
+    )
+
+
+def get_or_create_claims(ground_truth: str, concept_id: int | None = None) -> list[Claim]:
+    """Load cached claims when possible, otherwise parse and persist them."""
+    cached = storage.get_cached_claims(concept_id) if concept_id is not None else None
+    if cached:
+        return [
+            Claim(claim["statement"], claim["claim_type"], claim["claim_index"])
+            for claim in cached
+        ]
+
+    claims = _parse_claims(ground_truth)
+    if concept_id is not None and claims:
+        storage.save_cached_claims(
+            concept_id,
+            [
+                {
+                    "statement": claim.statement,
+                    "claim_type": claim.claim_type,
+                    "claim_index": claim.index,
+                }
+                for claim in claims
+            ],
+        )
+    return claims
+
+
 class DuelEngine:
     """Adversarial Socratic interrogation engine."""
 
@@ -517,32 +596,7 @@ class DuelEngine:
         self.concept = concept
         self.concept_id = concept_id
         self.state = BeliefState(ground_truth=ground_truth)
-
-        # Try to load cached claims from DB
-        cached = None
-        if concept_id is not None:
-            cached = storage.get_cached_claims(concept_id)
-
-        if cached:
-            self.state.claims = [
-                Claim(c["statement"], c["claim_type"], c["claim_index"]) for c in cached
-            ]
-        else:
-            # Parse claims from ground truth (LLM calls)
-            self.state.claims = _parse_claims(ground_truth)
-            # Cache for next time
-            if concept_id is not None and self.state.claims:
-                storage.save_cached_claims(
-                    concept_id,
-                    [
-                        {
-                            "statement": c.statement,
-                            "claim_type": c.claim_type,
-                            "claim_index": c.index,
-                        }
-                        for c in self.state.claims
-                    ],
-                )
+        self.state.claims = get_or_create_claims(ground_truth, concept_id)
 
         self.turn = 0
         self.max_turns = 3
@@ -591,6 +645,7 @@ class DuelEngine:
         # Check against claims
         errors = _run_contradiction_detector(self.state.belief, self.state.claims, self.turn)
         self.state.errors = errors
+        actionable = actionable_errors(errors)
 
         # Record snapshot (only if belief exists)
         if self.state.belief:
@@ -602,7 +657,7 @@ class DuelEngine:
                 )
             )
 
-        if not errors:
+        if not actionable:
             self.finished = True
             return {"type": "reveal", "message": ""}
 
@@ -647,9 +702,10 @@ def belief_to_score(state: BeliefState) -> int:
 
     Mapping: no errors=5, minor(1)=4, significant(2)=3, critical(3)=1
     """
-    if not state.errors:
+    effective_errors = actionable_errors(state.errors)
+    if not effective_errors:
         return 5
-    max_sev = max(e.severity for e in state.errors)
+    max_sev = max(effective_error_severity(error) for error in effective_errors)
     return {3: 1, 2: 3, 1: 4}.get(max_sev, 2)
 
 
@@ -674,6 +730,7 @@ def export_duel_data(state: BeliefState, concept: str) -> dict:
                         "severity": e.severity,
                         "claim": e.violated_claim,
                         "claim_idx": e.claim_index,
+                        "confidence": e.confidence,
                     }
                     for e in s.errors_at_time
                 ],
@@ -687,6 +744,7 @@ def export_duel_data(state: BeliefState, concept: str) -> dict:
                 "severity": e.severity,
                 "claim": e.violated_claim,
                 "claim_idx": e.claim_index,
+                "confidence": e.confidence,
             }
             for e in state.errors
         ],

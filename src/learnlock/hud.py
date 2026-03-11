@@ -21,11 +21,15 @@ def is_gentle() -> bool:
 
 def _claim_status(claim_idx: int, errors: list) -> tuple[str, str]:
     """Determine claim status: green/yellow/red based on errors."""
+    from .duel import effective_error_severity
+
     for e in errors:
         if e.claim_index == claim_idx:
-            if e.severity >= 2:
+            effective = effective_error_severity(e)
+            if effective >= 2:
                 return "red", "✗"
-            return "yellow", "~"
+            if effective == 1:
+                return "yellow", "~"
     return "green", "✓"
 
 
@@ -85,16 +89,35 @@ def render_duel_state(duel, console: Console = None):
 
     # === ATTACK TARGET PANEL ===
     if errors:
-        target = max(errors, key=lambda e: e.severity)
-        sev_label = {1: "minor", 2: "significant", 3: "critical"}.get(target.severity, "")
-        sev_color = {1: "dim", 2: "yellow", 3: "red"}.get(target.severity, "red")
+        from .duel import LOW_CONFIDENCE_THRESHOLD, effective_error_severity, primary_error
+
+        target = primary_error(errors)
+        if target is None:
+            target = max(errors, key=lambda e: (e.confidence, e.severity))
+        effective = effective_error_severity(target)
+        sev_label = {1: "minor", 2: "significant", 3: "critical"}.get(
+            effective or target.severity, ""
+        )
+        sev_color = {1: "dim", 2: "yellow", 3: "red"}.get(
+            effective or target.severity, "red"
+        )
 
         target_text = Text()
-        target_text.append(f"Claim {target.claim_index + 1}: ", style="bold")
-        target_text.append(f'"{target.violated_claim}"\n', style="white")
+        target_text.append(
+            f"Claim {target.claim_index + 1}: ", style="bold"
+        )
+        target_text.append(
+            f'"{target.violated_claim}"\n', style="white"
+        )
         target_text.append("Error: ", style="dim")
         target_text.append(f"{target.type} ", style=sev_color)
         target_text.append(f"({sev_label})", style="dim")
+
+        # Low confidence warning
+        if target.confidence < LOW_CONFIDENCE_THRESHOLD:
+            target_text.append(
+                "\n(I might be wrong about this one)", style="dim italic"
+            )
 
         console.print(
             Panel(
@@ -195,22 +218,42 @@ def render_reveal(reveal: dict, console: Console = None):
     # === FINAL ERRORS ===
     if errors:
         console.print()
-        err_table = Table(title="Errors Detected", box=box.ROUNDED, border_style="red")
+        err_table = Table(
+            title="Errors Detected",
+            box=box.ROUNDED,
+            border_style="red",
+        )
         err_table.add_column("Type", width=18)
         err_table.add_column("Severity", width=10)
-        err_table.add_column("Violated Claim", width=40)
+        err_table.add_column("Conf", width=5)
+        err_table.add_column("Violated Claim", width=35)
 
         for e in errors:
-            sev = {1: "minor", 2: "significant", 3: "critical"}.get(e.severity, "")
-            sev_color = {1: "dim", 2: "yellow", 3: "red"}.get(e.severity, "red")
+            from .duel import LOW_CONFIDENCE_THRESHOLD, effective_error_severity
+
+            effective = effective_error_severity(e)
+            sev = {1: "minor", 2: "significant", 3: "critical"}.get(
+                effective or e.severity, ""
+            )
+            sev_color = {1: "dim", 2: "yellow", 3: "red"}.get(
+                effective or e.severity, "red"
+            )
+            conf_pct = f"{int(e.confidence * 100)}%"
+            conf_style = "dim" if e.confidence < LOW_CONFIDENCE_THRESHOLD else ""
+            claim_str = f"[{e.claim_index + 1}] {e.violated_claim[:35]}"
             err_table.add_row(
-                e.type, Text(sev, style=sev_color), f"[{e.claim_index + 1}] {e.violated_claim[:40]}"
+                e.type,
+                Text(sev, style=sev_color),
+                Text(conf_pct, style=conf_style),
+                claim_str,
             )
         console.print(err_table)
 
     # === VERDICT PANEL ===
     console.print()
-    max_sev = max((e.severity for e in errors), default=0)
+    from .duel import effective_error_severity
+
+    max_sev = max((effective_error_severity(e) for e in errors), default=0)
     verdicts = {
         0: ("[green]█████[/green]", "SOLID", "green"),
         1: ("[green]████░[/green]", "MINOR GAPS", "green"),

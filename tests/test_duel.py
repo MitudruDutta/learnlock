@@ -54,6 +54,18 @@ class TestBeliefToScore:
 
         assert reachable == {1, 3, 4, 5}
 
+    def test_low_confidence_critical_error_is_downgraded(self):
+        state = BeliefState(
+            errors=[BeliefError("wrong_mechanism", "desc", 3, "claim", 0, confidence=0.5)]
+        )
+        assert belief_to_score(state) == 3
+
+    def test_very_low_confidence_error_is_ignored(self):
+        state = BeliefState(
+            errors=[BeliefError("wrong_mechanism", "desc", 3, "claim", 0, confidence=0.2)]
+        )
+        assert belief_to_score(state) == 5
+
 
 class TestIsNonAnswer:
     def test_idk(self):
@@ -155,6 +167,43 @@ class TestContradictionDetector:
         )
         errors = _run_contradiction_detector("belief", [Claim("claim", "mechanism", 0)], 1)
         assert len(errors) == 0
+
+    def test_parses_confidence_value(self, monkeypatch):
+        """Confidence should be parsed from the 5th pipe-separated field."""
+        monkeypatch.setattr(
+            "learnlock.duel._duel_llm",
+            lambda prompt: "1|wrong_mechanism|Wrong explanation|2|0.6",
+        )
+        errors = _run_contradiction_detector(
+            "wrong", [Claim("correct claim", "mechanism", 0)], 2,
+        )
+        assert len(errors) == 1
+        assert errors[0].confidence == 0.6
+
+    def test_missing_confidence_defaults_to_1(self, monkeypatch):
+        """Without a confidence field, default to 1.0."""
+        monkeypatch.setattr(
+            "learnlock.duel._duel_llm",
+            lambda prompt: "1|wrong_mechanism|Wrong explanation|2",
+        )
+        errors = _run_contradiction_detector(
+            "wrong", [Claim("correct claim", "mechanism", 0)], 2,
+        )
+        assert len(errors) == 1
+        assert errors[0].confidence == 1.0
+
+    def test_confidence_zero_is_valid(self, monkeypatch):
+        """Confidence of 0.0 should be accepted as a valid value."""
+        monkeypatch.setattr(
+            "learnlock.duel._duel_llm",
+            lambda prompt: "1|wrong_mechanism|Wrong explanation|2|0.0",
+        )
+        errors = _run_contradiction_detector(
+            "wrong", [Claim("correct claim", "mechanism", 0)], 2,
+        )
+        assert len(errors) == 1
+        assert errors[0].confidence == 0.0
+        assert errors[0].severity == 2
 
     def test_none_response(self, monkeypatch):
         monkeypatch.setattr("learnlock.duel._duel_llm", lambda prompt: "NONE")

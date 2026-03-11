@@ -13,7 +13,7 @@ import requests
 from . import config
 
 REQUEST_HEADERS = {
-    "User-Agent": "learn-lock/0.1.0 (+https://github.com/MitudruDutta/learnlock)",
+    "User-Agent": "learn-lock/0.1.6 (+https://github.com/MitudruDutta/learnlock)",
 }
 _BLOCKED_HOST_SUFFIXES = (
     ".internal",
