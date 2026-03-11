@@ -41,7 +41,7 @@ Feed it a YouTube video, article, PDF, or GitHub repo. It extracts concepts, bui
 ### From PyPI
 
 ```bash
-pip install learn-lock
+pip install learn-lock==0.1.6
 ```
 
 Requires Python 3.11 or higher.
@@ -65,11 +65,11 @@ pip install "learn-lock[whisper]"   # Whisper fallback for YouTube without trans
 
 ## Quick Start
 
-1. Set your API keys:
+1. Set at least one API key:
 
 ```bash
-export GROQ_API_KEY=your_key        # Required — get free at console.groq.com
-export GEMINI_API_KEY=your_key      # Recommended — get free at aistudio.google.com
+export GROQ_API_KEY=your_key        # Fast extraction + fallback calls
+export GEMINI_API_KEY=your_key      # Better duel evaluation + /visual
 ```
 
 Or create a `.env` file in the project root.
@@ -82,9 +82,11 @@ learnlock
 
 3. Paste a YouTube URL, article link, PDF path, or GitHub repo URL
 
-4. Start studying with `/study`
+4. Start studying with `/study` or just press Enter on an empty prompt
 
 5. Double Enter to send your answer
+
+6. New users start in gentle mode automatically until they reach 5 successful reviews
 
 ---
 
@@ -92,8 +94,8 @@ learnlock
 
 1. You explain a concept in your own words
 2. The engine infers what you believe
-3. It compares your belief against ground truth claims
-4. It finds contradictions and attacks the weakest point
+3. It compares your belief against cached ground truth claims
+4. It finds contradictions, weighs their confidence, and attacks the strongest actionable point
 5. After 3 turns (or success), it reveals your belief trajectory
 6. Your score feeds into SM-2 spaced repetition scheduling
 
@@ -155,6 +157,7 @@ LearnLock asks: "What do you _believe_ about X, and where is it wrong?"
 - Vague answers trigger mechanism probes
 - Wrong answers trigger claim-specific attacks
 - "I don't know" triggers guiding questions (not punishment)
+- Low-confidence errors can be shown without tanking the final score
 - Correct answers pass after verification
 - 3 turns exhausted triggers reveal with full trajectory
 
@@ -199,7 +202,7 @@ Claims are the epistemic foundation. The duel is only as fair as the claims.
 
 ### Claim Caching
 
-Claims are parsed once at ingest time and cached in the database (`cached_claims` table). Subsequent duels load from cache instead of re-parsing, making study sessions faster and deterministic.
+Claims are generated lazily on first duel or the first `/claims` request, then cached in the database (`cached_claims` table). Subsequent duels and claim reviews load from cache instead of re-parsing, making study sessions faster and more deterministic.
 
 ---
 
@@ -214,6 +217,11 @@ Claims are parsed once at ingest time and cached in the database (`cached_claims
 | `/due` | Show concepts due for review |
 | `/skip <name>` | Skip a concept |
 | `/unskip <name>` | Restore skipped concept |
+| `/claims <name-or-id>` | View, generate, edit, or delete cached claims |
+| `/delete <source-or-id>` | Delete a source and all related concepts |
+| `/export [file]` | Export a versioned JSON backup |
+| `/import <file>` | Validate and merge a JSON backup |
+| `/visual [name-or-id]` | Inspect the linked YouTube frame on demand |
 | `/config` | Show current configuration |
 | `/help` | Show help |
 | `/quit` | Exit |
@@ -226,6 +234,11 @@ Claims are parsed once at ingest time and cached in the database (`cached_claims
 | `-v`, `--version` | Show version |
 | `-p`, `--print` | Print output and exit (non-interactive) |
 
+Notes:
+- New installs automatically start in gentle mode until 5 successful reviews are recorded.
+- `/claims`, `/delete`, and `/visual` accept numeric IDs to resolve ambiguous names.
+- `/visual` is opt-in and only applies to YouTube concepts with timestamped transcript matches.
+
 ---
 
 ## Configuration
@@ -236,7 +249,7 @@ All settings via environment variables or `.env` file.
 
 | Variable | Required | Source |
 |----------|----------|--------|
-| `GROQ_API_KEY` | Yes | [console.groq.com](https://console.groq.com) |
+| `GROQ_API_KEY` | One of `GROQ_API_KEY` or `GEMINI_API_KEY` is required | [console.groq.com](https://console.groq.com) |
 | `GEMINI_API_KEY` | Recommended | [aistudio.google.com](https://aistudio.google.com) |
 
 ### Models
@@ -286,7 +299,7 @@ pip install -e ".[dev]"
 ### Testing
 
 ```bash
-pytest                    # Run all 138 tests
+pytest                    # Run all tests
 pytest -v                 # Verbose output
 pytest tests/test_duel.py # Run specific test file
 ```
@@ -294,13 +307,14 @@ pytest tests/test_duel.py # Run specific test file
 ### Linting
 
 ```bash
-ruff check src/
+ruff check src tests
 ```
 
 ### Building
 
 ```bash
 python -m build
+python -m twine check dist/*
 ```
 
 ### Project Structure
@@ -344,15 +358,19 @@ Claims are LLM-generated. Despite three-pass filtering, semantic drift can occur
 
 ### Hallucinated Errors (Moral Risk)
 
-The contradiction detector can invent violations. A correct answer might be flagged as `missing_mechanism` due to LLM drift. Graded harshness and claim-index validation mitigate but don't prevent this.
+The contradiction detector can still invent violations. A correct answer might be flagged as `missing_mechanism` due to LLM drift. Graded harshness, claim-index validation, and confidence weighting mitigate but do not eliminate this.
 
-### No Confidence Signals
+### Confidence Is Not Full Verification
 
-Errors are currently binary. The engine cannot express "I might be wrong here." Confidence scoring is planned for a future release.
+The engine can now express low-confidence findings and down-weight them before scoring, but this is still single-pass judgment. It is not the same as multi-pass agreement or formal claim verification.
+
+### Import/Export Is Merge-Oriented, Not Multi-Device Sync
+
+`/export` and `/import` are safe for backup, restore, and controlled merges. They are not yet a full conflict-free sync protocol for multiple machines writing concurrently.
 
 ### UI Density
 
-The HUD shows claims, belief, attack target, and interrogation simultaneously. Use `--gentle` for a minimal, supportive experience.
+The full HUD shows claims, belief, attack target, and interrogation simultaneously. LearnLock starts new users in gentle mode automatically, and `--gentle` can keep that softer experience enabled later.
 
 ---
 
