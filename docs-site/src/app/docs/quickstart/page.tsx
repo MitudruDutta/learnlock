@@ -27,14 +27,19 @@ export default function QuickstartPage() {
         <h2 className="text-xl sm:text-2xl font-semibold">Step 3: Start Studying</h2>
         <p className="text-sm sm:text-base text-muted-foreground">Press Enter or type /study:</p>
         <pre className="bg-[#1f1f23] border border-[#3f3f46] p-3 sm:p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
-
-━━━ 1/10: Backpropagation ━━━
-Challenge: How does backpropagation update weights?
-
+	
+Gentle mode enabled for your first few solid reviews.
+--- 1/10: Backpropagation ---
+Explain how backpropagation updates weights.
+	
 > It calculates gradients using the chain rule...
-
-████░ Good (4/5)
+	
+████░ Great (4/5)
 Next review: in 6 days`}</code></pre>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+          New users start in gentle mode automatically. After 5 successful reviews,
+          LearnLock switches to the full HUD unless you force <code className="bg-[#1f1f23] px-1 rounded">--gentle</code>.
+        </p>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
@@ -63,6 +68,14 @@ Next review: in 6 days`}</code></pre>
               <tr className="border-b border-border/50">
                 <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/due</td>
                 <td className="py-2">See what needs review</td>
+              </tr>
+              <tr className="border-b border-border/50">
+                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400 whitespace-nowrap">/claims &lt;id&gt;</td>
+                <td className="py-2">Inspect or fix generated claims before a duel</td>
+              </tr>
+              <tr className="border-b border-border/50">
+                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400 whitespace-nowrap">/export [file]</td>
+                <td className="py-2">Create a versioned JSON backup</td>
               </tr>
               <tr>
                 <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/help</td>

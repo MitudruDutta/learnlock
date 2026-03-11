@@ -45,6 +45,17 @@ export default function DocsPage() {
         </p>
       </div>
 
+      <div className="rounded-xl border border-[#3f3f46] bg-[#1f1f23] p-4 sm:p-5">
+        <p className="text-xs uppercase tracking-[0.2em] text-[#71717a]">v0.1.6</p>
+        <h2 className="mt-2 text-lg sm:text-xl font-semibold text-white">
+          Current release docs match the shipped CLI.
+        </h2>
+        <p className="mt-2 text-sm sm:text-base text-muted-foreground">
+          This release adds claim editing, source deletion, versioned export/import merging,
+          confidence-aware duel scoring, and opt-in YouTube frame inspection.
+        </p>
+      </div>
+
       {/* Cards with PixelCanvas */}
       <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2">
         {cards.map((card) => (
@@ -80,7 +91,7 @@ export default function DocsPage() {
           </Link>
           <Link href="/docs/quickstart" className="group p-3 sm:p-4 rounded-lg bg-[#1f1f23] border border-[#27272a] transition-all duration-300 hover:bg-[#252528]">
             <h3 className="font-medium text-sm sm:text-base mb-0.5 sm:mb-1 transition-colors duration-300 group-hover:text-white">Quickstart</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground transition-colors duration-300 group-hover:text-[#d4d4d8]">Add content and start studying in 2 minutes.</p>
+            <p className="text-xs sm:text-sm text-muted-foreground transition-colors duration-300 group-hover:text-[#d4d4d8]">Add content, enter gentle mode, and start your first duel.</p>
           </Link>
           <Link href="/docs/adversarial-learning" className="group p-3 sm:p-4 rounded-lg bg-[#1f1f23] border border-[#27272a] transition-all duration-300 hover:bg-[#252528]">
             <h3 className="font-medium text-sm sm:text-base mb-0.5 sm:mb-1 transition-colors duration-300 group-hover:text-white">Adversarial Learning</h3>
@@ -100,7 +111,7 @@ export default function DocsPage() {
           </Link>
           <Link href="/docs/commands" className="group p-3 sm:p-4 rounded-lg bg-[#1f1f23] border border-[#27272a] transition-all duration-300 hover:bg-[#252528]">
             <h3 className="font-medium text-sm sm:text-base mb-0.5 sm:mb-1 transition-colors duration-300 group-hover:text-white">CLI Commands</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground transition-colors duration-300 group-hover:text-[#d4d4d8]">Complete reference for all commands.</p>
+            <p className="text-xs sm:text-sm text-muted-foreground transition-colors duration-300 group-hover:text-[#d4d4d8]">Reference for claims, backup, delete, and /visual.</p>
           </Link>
           <Link href="/docs/adding-content" className="group p-3 sm:p-4 rounded-lg bg-[#1f1f23] border border-[#27272a] transition-all duration-300 hover:bg-[#252528]">
             <h3 className="font-medium text-sm sm:text-base mb-0.5 sm:mb-1 transition-colors duration-300 group-hover:text-white">Adding Content</h3>

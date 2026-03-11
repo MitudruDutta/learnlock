@@ -9,12 +9,12 @@ export default function InstallationPage() {
     <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-3 sm:mb-4">Installation</h1>
-        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">Get LearnLock running in under 5 minutes.</p>
+        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">Get LearnLock v0.1.6 running in under 5 minutes.</p>
       </div>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">pip (Recommended)</h2>
-        <CodeBlock code="pip install learn-lock" />
+        <CodeBlock code="pip install learn-lock==0.1.6" />
       </section>
 
       <section className="space-y-3 sm:space-y-4">
@@ -45,21 +45,27 @@ bash install.sh`}
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">API Keys Setup</h2>
-        <p className="text-sm sm:text-base text-muted-foreground">LearnLock requires at least one API key. Both are free.</p>
+        <p className="text-sm sm:text-base text-muted-foreground">LearnLock requires at least one API key. Both are free, and using both unlocks the best experience.</p>
         
-        <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">1. Groq API Key (Recommended)</h3>
+        <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">1. Groq API Key</h3>
         <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-sm sm:text-base text-muted-foreground">
           <li>Go to <a href="https://console.groq.com" className="text-foreground underline">console.groq.com</a></li>
           <li>Create an account (free)</li>
           <li>Generate an API key</li>
         </ol>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          Groq covers extraction and fallback LLM calls.
+        </p>
 
-        <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">2. Gemini API Key (Recommended)</h3>
+        <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">2. Gemini API Key</h3>
         <ol className="list-decimal list-inside space-y-1.5 sm:space-y-2 text-sm sm:text-base text-muted-foreground">
           <li>Go to <a href="https://aistudio.google.com" className="text-foreground underline">aistudio.google.com</a></li>
           <li>Sign in with Google</li>
           <li>Get API key</li>
         </ol>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          Gemini powers duel evaluation quality and the opt-in <code>/visual</code> frame inspector.
+        </p>
 
         <h3 className="text-base sm:text-lg font-medium mt-3 sm:mt-4">Set Environment Variables</h3>
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">macOS/Linux:</p>
@@ -79,7 +85,7 @@ $env:GEMINI_API_KEY="your_gemini_key"`}
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Verify Installation</h2>
-        <CodeBlock code="learn-lock --version" />
+        <CodeBlock code="learnlock --version" />
       </section>
 
       <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">

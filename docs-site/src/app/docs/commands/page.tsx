@@ -3,13 +3,55 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+const COMMANDS = [
+  ["/add <source>", "Add a YouTube video, article, GitHub repo, or PDF path/URL."],
+  ["/study", "Start the current due session. Press Enter on an empty prompt as a shortcut."],
+  ["/stats", "Show sources, concepts, due count, review stats, and mastery progress."],
+  ["/list", "List active concepts grouped by source."],
+  ["/due", "Show what is currently due for review."],
+  ["/skip <name-or-id>", "Skip a concept during normal review rotation."],
+  ["/unskip <name-or-id>", "Restore a skipped concept."],
+  ["/claims <name-or-id>", "View, generate, edit, or delete cached claims for a concept."],
+  ["/delete <source-or-id>", "Delete a source and all associated concepts after confirmation."],
+  ["/export [file]", "Export a versioned JSON backup. Supports paths like ~/learnlock-export.json."],
+  ["/import <file>", "Validate and merge a JSON backup into the current database."],
+  ["/visual [name-or-id]", "On-demand YouTube frame inspection for the last reviewed or selected concept."],
+  ["/config", "Show the active data path, models, and API key availability."],
+  ["/clear", "Clear the screen and re-render the LearnLock banner."],
+  ["/help", "Show the built-in help text."],
+  ["/quit", "Exit LearnLock."],
+];
+
+const FLAGS = [
+  ["--gentle, -g", "Force the softer HUD and supportive feedback mode."],
+  ["--version, -v", "Print the installed LearnLock version and exit."],
+];
+
 export default function CommandsPage() {
   return (
     <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-3 sm:mb-4">CLI Commands</h1>
-        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">Complete reference for all LearnLock commands.</p>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-3 sm:mb-4">
+          CLI Commands
+        </h1>
+        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">
+          Complete reference for the v0.1.6 command surface.
+        </p>
       </div>
+
+      <section className="rounded-xl border border-[#3f3f46] bg-[#1f1f23] p-4 sm:p-5">
+        <p className="text-xs sm:text-sm uppercase tracking-[0.2em] text-[#71717a]">
+          Release Notes
+        </p>
+        <h2 className="mt-2 text-lg sm:text-xl font-semibold text-white">
+          Phase 3 commands are now documented.
+        </h2>
+        <p className="mt-2 text-sm sm:text-base text-muted-foreground">
+          The CLI now supports claim review, source deletion, versioned export/import
+          merging, and opt-in YouTube visual inspection. The docs below match the
+          current shipped behavior rather than the older pre-Phase 3 flow.
+        </p>
+      </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Command Overview</h2>
@@ -17,97 +59,82 @@ export default function CommandsPage() {
           <table className="w-full text-xs sm:text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 pr-3 sm:pr-4 text-muted-foreground">Command</th>
+                <th className="text-left py-2 pr-3 sm:pr-4 text-muted-foreground">
+                  Command
+                </th>
                 <th className="text-left py-2 text-muted-foreground">Description</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400 whitespace-nowrap">/add &lt;url&gt;</td>
-                <td className="py-2">Add content from URL or file</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/study</td>
-                <td className="py-2">Start study session</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/stats</td>
-                <td className="py-2">Show progress statistics</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/list</td>
-                <td className="py-2">List all concepts</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/due</td>
-                <td className="py-2">Show concepts due for review</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400 whitespace-nowrap">/skip &lt;name&gt;</td>
-                <td className="py-2">Skip a concept</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400 whitespace-nowrap">/unskip &lt;name&gt;</td>
-                <td className="py-2">Restore skipped concept</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/config</td>
-                <td className="py-2">Show configuration</td>
-              </tr>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/help</td>
-                <td className="py-2">Show help</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400">/quit</td>
-                <td className="py-2">Exit LearnLock</td>
-              </tr>
+              {COMMANDS.map(([command, description]) => (
+                <tr key={command} className="border-b border-border/50 last:border-0">
+                  <td className="py-2 pr-3 sm:pr-4 font-mono text-cyan-400 whitespace-nowrap">
+                    {command}
+                  </td>
+                  <td className="py-2">{description}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">/add</h2>
-        <p className="text-sm sm:text-base text-muted-foreground">Add content from URL or local file:</p>
-        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`# YouTube
-learnlock> /add https://youtube.com/watch?v=...
+        <h2 className="text-xl sm:text-2xl font-semibold">High-Leverage Workflows</h2>
 
-# Article
-learnlock> /add https://example.com/article
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-medium">Add and Study</h3>
+            <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm">
+              <code>{`learnlock> /add https://youtu.be/kCc8FmEb1nY
+learnlock> /study
 
-# GitHub
-learnlock> /add https://github.com/user/repo
+Type 'skip' to skip, 'q' to quit.
+Press Enter twice to submit each answer.`}</code>
+            </pre>
+          </div>
 
-# PDF
-learnlock> /add /path/to/document.pdf`}</code></pre>
-      </section>
+          <div>
+            <h3 className="text-base sm:text-lg font-medium">Review or Fix Claims Before Studying</h3>
+            <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm">
+              <code>{`learnlock> /claims 12
 
-      <section className="space-y-3 sm:space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">/study</h2>
-        <p className="text-sm sm:text-base text-muted-foreground">Start an adversarial study session:</p>
-        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /study
+edit 2 Attention weights come from the query-key dot product.
+delete 4
+done`}</code>
+            </pre>
+            <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
+              You can target concepts by name or numeric id. If claims do not exist yet,
+              LearnLock now generates them on demand.
+            </p>
+          </div>
 
-Study Session — 5 concepts to review
-Type 'skip' to skip, 'q' to quit`}</code></pre>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-          During study: type <code className="bg-[#1f1f23] px-1 rounded">skip</code> to skip, <code className="bg-[#1f1f23] px-1 rounded">q</code> to quit.
-        </p>
-      </section>
+          <div>
+            <h3 className="text-base sm:text-lg font-medium">Safe Backup and Merge</h3>
+            <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm">
+              <code>{`learnlock> /export ~/learnlock-backup.json
+learnlock> /import ~/learnlock-backup.json`}</code>
+            </pre>
+            <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
+              Imports are validated before touching the database and merge existing
+              sources, concepts, progress, duel memory, and cached claims.
+            </p>
+          </div>
 
-      <section className="space-y-3 sm:space-y-4">
-        <h2 className="text-xl sm:text-2xl font-semibold">/stats</h2>
-        <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm"><code>{`learnlock> /stats
-
-╭──────────────────────────╮
-│      Your Progress       │
-├──────────────────────────┤
-│ Sources         3        │
-│ Concepts        28       │
-│ Due now         5        │
-│ Avg score       3.8/5    │
-│ Mastered        12       │
-╰──────────────────────────╯`}</code></pre>
+          <div>
+            <h3 className="text-base sm:text-lg font-medium">Inspect the Visual Context</h3>
+            <pre className="bg-[#1f1f23] border border-[#3f3f46] p-4 rounded-lg overflow-x-auto text-xs sm:text-sm">
+              <code>{`learnlock> /visual
+# or target a concept directly
+learnlock> /visual 18`}</code>
+            </pre>
+            <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
+              <code className="bg-[#1f1f23] px-1 rounded">/visual</code> is opt-in and only
+              applies to YouTube concepts with transcript timestamps. It uses Gemini Vision
+              to describe the linked frame.
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
@@ -121,36 +148,53 @@ Type 'skip' to skip, 'q' to quit`}</code></pre>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-border/50">
-                <td className="py-2 pr-4 font-mono text-cyan-400">--gentle, -g</td>
-                <td className="py-2">Gentle UI mode (minimal, supportive feedback)</td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-4 font-mono text-cyan-400">--version, -v</td>
-                <td className="py-2">Show version</td>
-              </tr>
+              {FLAGS.map(([flag, description]) => (
+                <tr key={flag} className="border-b border-border/50 last:border-0">
+                  <td className="py-2 pr-4 font-mono text-cyan-400">{flag}</td>
+                  <td className="py-2">{description}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-          Example: <code className="bg-[#1f1f23] px-1 rounded">learnlock --gentle</code> for a less intense experience.
+          New installs start in gentle mode automatically until you have 5 successful
+          reviews. Use <code className="bg-[#1f1f23] px-1 rounded">--gentle</code> to force
+          that mode even after you graduate to the full HUD.
         </p>
       </section>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">Aliases</h2>
         <ul className="list-disc list-inside space-y-1 text-xs sm:text-sm text-muted-foreground">
-          <li><code className="bg-[#1f1f23] px-1 rounded">/list</code> → <code className="bg-[#1f1f23] px-1 rounded">/ls</code></li>
-          <li><code className="bg-[#1f1f23] px-1 rounded">/help</code> → <code className="bg-[#1f1f23] px-1 rounded">/h</code>, <code className="bg-[#1f1f23] px-1 rounded">/?</code></li>
-          <li><code className="bg-[#1f1f23] px-1 rounded">/clear</code> → <code className="bg-[#1f1f23] px-1 rounded">/cls</code></li>
-          <li><code className="bg-[#1f1f23] px-1 rounded">/quit</code> → <code className="bg-[#1f1f23] px-1 rounded">/exit</code>, <code className="bg-[#1f1f23] px-1 rounded">/q</code></li>
+          <li>
+            <code className="bg-[#1f1f23] px-1 rounded">/list</code> also works as{" "}
+            <code className="bg-[#1f1f23] px-1 rounded">/ls</code>.
+          </li>
+          <li>
+            <code className="bg-[#1f1f23] px-1 rounded">/help</code> also works as{" "}
+            <code className="bg-[#1f1f23] px-1 rounded">/h</code> and{" "}
+            <code className="bg-[#1f1f23] px-1 rounded">/?</code>.
+          </li>
+          <li>
+            <code className="bg-[#1f1f23] px-1 rounded">/clear</code> also works as{" "}
+            <code className="bg-[#1f1f23] px-1 rounded">/cls</code>.
+          </li>
+          <li>
+            <code className="bg-[#1f1f23] px-1 rounded">/quit</code> also works as{" "}
+            <code className="bg-[#1f1f23] px-1 rounded">/exit</code> and{" "}
+            <code className="bg-[#1f1f23] px-1 rounded">/q</code>.
+          </li>
         </ul>
       </section>
 
       <div className="p-3 sm:p-4 rounded-lg border border-[#3f3f46] bg-[#1f1f23]">
         <p className="text-xs sm:text-sm text-muted-foreground mb-2">Next:</p>
-        <Link href="/docs/adding-content" className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium">
-          Adding Content <ArrowRight className="w-4 h-4" />
+        <Link
+          href="/docs/study-sessions"
+          className="inline-flex items-center gap-2 text-sm sm:text-base text-foreground hover:underline font-medium"
+        >
+          Study Sessions <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
     </div>
