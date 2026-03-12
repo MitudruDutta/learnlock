@@ -66,7 +66,7 @@ HELP_TEXT = """
   [cyan]/stats[/cyan]            Show your progress
   [cyan]/list[/cyan]             List all concepts
   [cyan]/due[/cyan]              Show what's due
-  [cyan]/skip[/cyan] <name>      Skip a concept
+  [cyan]/skip[/cyan]   <name>    Skip a concept
   [cyan]/unskip[/cyan] <name>    Restore skipped concept
   [cyan]/claims[/cyan] <name>    View/edit/delete claims for a concept
   [cyan]/delete[/cyan] <source>  Delete a source and its concepts
