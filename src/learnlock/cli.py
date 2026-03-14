@@ -184,34 +184,62 @@ def _check_api_keys(*, require_groq: bool = False, require_any: bool = False) ->
     if not require_any and not require_groq:
         return has_groq or has_gemini
 
-    if require_any:
-        console.print("[red]Error: no LLM API key configured[/red]")
-        console.print()
-        console.print("[dim]Set at least one of:[/dim]")
-        console.print("  [white]GROQ_API_KEY[/white] for extraction and fallback")
-        console.print("  [white]GEMINI_API_KEY[/white] for duel evaluation")
-        return False
-
-    if not has_groq:
-        console.print("[red]Error: GROQ_API_KEY not set[/red]")
-        console.print()
-        console.print("[dim]Get your free API key:[/dim]")
-        console.print("  1. Go to [cyan]https://console.groq.com[/cyan]")
-        console.print("  2. Create account and get API key")
-        console.print()
-        if sys.platform == "win32":
-            console.print("[dim]Set it (PowerShell):[/dim]")
-            console.print('  [white]$env:GROQ_API_KEY="your_key"[/white]')
-            console.print()
-            console.print("[dim]Or permanent (CMD):[/dim]")
-            console.print('  [white]setx GROQ_API_KEY "your_key"[/white]')
-        else:
-            console.print("[dim]Set it:[/dim]")
-            console.print("  [white]export GROQ_API_KEY=your_key[/white]")
-            console.print()
-            console.print("[dim]Or add to ~/.bashrc for persistence[/dim]")
+    if require_any or not has_groq:
+        _print_api_key_help()
         return False
     return True
+
+
+def _print_api_key_help():
+    """Show how to set API keys in the terminal."""
+    console.print("[bold yellow]API keys not set.[/bold yellow]")
+    console.print()
+    console.print(
+        "You need at least one API key. "
+        "Run these in your terminal before launching learnlock:"
+    )
+    console.print()
+    if sys.platform == "win32":
+        console.print("[bold]Windows (PowerShell):[/bold]")
+        console.print(
+            '  [white]$env:GROQ_API_KEY="your_groq_key_here"[/white]'
+        )
+        console.print(
+            '  [white]$env:GEMINI_API_KEY="your_gemini_key_here"[/white]'
+        )
+        console.print()
+        console.print("[bold]Windows (CMD — permanent):[/bold]")
+        console.print(
+            '  [white]setx GROQ_API_KEY "your_groq_key_here"[/white]'
+        )
+        console.print(
+            '  [white]setx GEMINI_API_KEY "your_gemini_key_here"[/white]'
+        )
+    else:
+        console.print("[bold]Linux / macOS:[/bold]")
+        console.print(
+            '  [white]export GROQ_API_KEY="your_groq_key_here"[/white]'
+        )
+        console.print(
+            '  [white]export GEMINI_API_KEY="your_gemini_key_here"[/white]'
+        )
+        console.print()
+        console.print(
+            "[dim]Add these lines to ~/.bashrc or ~/.zshrc "
+            "to make them permanent.[/dim]"
+        )
+    console.print()
+    console.print("[bold]Get free keys:[/bold]")
+    console.print(
+        "  Groq  : [cyan]https://console.groq.com[/cyan]"
+    )
+    console.print(
+        "  Gemini : [cyan]https://aistudio.google.com/apikey[/cyan]"
+    )
+    console.print()
+    console.print(
+        "[dim]Either key works. Both together give the best experience.[/dim]"
+    )
 
 
 def _truncate_stored_content(content: str) -> str:
@@ -1207,11 +1235,19 @@ def interactive_mode():
     console.clear()
     _print_banner()
     console.print()
-    _print_status()
-    console.print()
-    console.print("[dim]Type /help for commands, or paste a URL to add content[/dim]")
-    console.print("[dim]Press Enter to start studying[/dim]")
-    console.print()
+
+    has_any_key = bool(
+        os.environ.get("GROQ_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    )
+
+    if not has_any_key:
+        _print_api_key_help()
+    else:
+        _print_status()
+        console.print()
+        console.print("[dim]Type /help for commands, or paste a URL to add content[/dim]")
+        console.print("[dim]Press Enter to start studying[/dim]")
+        console.print()
 
     while True:
         try:
