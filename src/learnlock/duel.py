@@ -75,15 +75,20 @@ def _duel_llm(prompt: str) -> str:
     )
 
 
-def _parse_claims(ground_truth: str) -> list[Claim]:
-    """Parse ground truth into 2-4 testable claims, then verify."""
+def _calc_claim_count(content_len: int) -> tuple[int, int]:
+    """Calculate min/max claims based on ground truth length.
 
-    safe_truth = llm.sanitize_for_prompt(ground_truth, max_length=500)
+    Short content gets fewer claims, longer content gets more.
+    Clamped to 2-6 range.
+    """
+    # ~1 claim per 100 chars of ground truth
+    base = max(2, min(6, content_len // 100))
+    return max(2, base - 1), min(6, base + 1)
 
-    # Pass 1: Generate CONCEPTUAL claims (not transcript parroting)
-    prompt = f"""Extract 2-4 conceptual claims about this topic.
 
-SOURCE: {safe_truth}
+_CLAIM_PROMPT_TEMPLATE = """Extract {min_claims}-{max_claims} conceptual claims about this topic.
+
+SOURCE: {source}
 
 RULES:
 - Claims must be CONCEPTUAL TRUTHS, not runtime facts
@@ -102,8 +107,31 @@ Types: definition, mechanism, requirement, boundary
 Reply ONLY as:
 TYPE|CLAIM"""
 
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "to", "of", "in", "for", "on", "with", "at", "by", "from", "as",
+    "it", "its", "that", "this", "and", "or", "but", "not", "no",
+    "can", "do", "does", "did", "has", "have", "had", "will", "would",
+    "should", "may", "might", "must", "shall",
+})
+
+
+def _generate_raw_claims(
+    safe_truth: str, temperature: float, max_claims: int
+) -> list[Claim]:
+    """Generate claims at a specific temperature. Returns parsed but unfiltered claims."""
+    min_c, max_c = _calc_claim_count(len(safe_truth))
+    prompt = _CLAIM_PROMPT_TEMPLATE.format(
+        source=safe_truth, min_claims=min_c, max_claims=max_c
+    )
     try:
-        resp = _duel_llm(prompt).strip()
+        resp = llm.call(
+            prompt,
+            temperature=temperature,
+            max_tokens=_DUEL_MAX_TOKENS,
+            prefer="gemini",
+        ).strip()
+
         claims = []
         seen: set[str] = set()
 
@@ -127,10 +155,63 @@ TYPE|CLAIM"""
             seen.add(stmt)
             claims.append(Claim(statement=stmt, claim_type=ctype, index=len(claims)))
 
-        if len(claims) < 2:
+        return claims[:max_claims]
+    except Exception:
+        return []
+
+
+def _claims_similar(a: str, b: str) -> bool:
+    """Check if two claims overlap enough to be considered the same idea."""
+    words_a = set(a.lower().split()) - _STOP_WORDS
+    words_b = set(b.lower().split()) - _STOP_WORDS
+    if not words_a or not words_b:
+        return False
+    overlap = len(words_a & words_b)
+    smaller = min(len(words_a), len(words_b))
+    return overlap / smaller >= 0.5
+
+
+def _intersect_claims(primary: list[Claim], secondary: list[Claim]) -> list[Claim]:
+    """Keep claims from primary that have a matching idea in secondary."""
+    verified = []
+    for claim in primary:
+        for other in secondary:
+            if _claims_similar(claim.statement, other.statement):
+                verified.append(claim)
+                break
+    return verified
+
+
+def _parse_claims(ground_truth: str) -> list[Claim]:
+    """Parse ground truth into 2-4 testable claims, then verify.
+
+    Uses dual-temperature generation: runs claim extraction twice at different
+    temperatures and keeps only claims that appear in both runs. This eliminates
+    hallucinated claims before the garbage and sharpness filters.
+    """
+    safe_truth = llm.sanitize_for_prompt(ground_truth, max_length=500)
+
+    try:
+        # Pass 1: Dual-temperature generation for variance check
+        _, max_claims = _calc_claim_count(len(safe_truth))
+        claims_low = _generate_raw_claims(safe_truth, temperature=0.4, max_claims=max_claims)
+        claims_high = _generate_raw_claims(safe_truth, temperature=0.9, max_claims=max_claims)
+
+        # Intersect: keep only claims that appear in both runs
+        if claims_low and claims_high:
+            claims = _intersect_claims(claims_low, claims_high)
+            if len(claims) < 2:
+                # Not enough overlap — trust the lower-temp run
+                claims = claims_low
+        elif claims_low:
+            claims = claims_low
+        elif claims_high:
+            claims = claims_high
+        else:
             return [Claim(safe_truth[:150], "definition", 0)]
 
-        claims = claims[:4]
+        if len(claims) < 2:
+            return [Claim(safe_truth[:150], "definition", 0)]
 
         # Pass 2: Verify claims - prune garbage
         claims = _verify_claims(claims)

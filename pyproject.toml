@@ -1,6 +1,6 @@
 [project]
 name = "learn-lock"
-version = "0.1.6"
+version = "0.1.7"
 description = "The app that argues with you. Adversarial Socratic learning with spaced repetition."
 readme = "README.md"
 license = {text = "MIT"}
@@ -32,8 +32,6 @@ dependencies = [
     "requests>=2.28.0",
     "pymupdf>=1.23.0",
     "google-generativeai>=0.3.0",
-    "yt-dlp>=2023.0.0",
-    "groq>=0.4.0",
     "pillow>=10.0.0",
 ]
 
@@ -48,14 +46,19 @@ dev = [
     "ruff",
     "build",
     "twine",
+    "pre-commit",
+]
+video = [
+    "yt-dlp>=2023.0.0",
+    "groq>=0.4.0",
+]
+whisper = [
+    "yt-dlp>=2023.0.0",
+    "groq>=0.4.0",
 ]
 ocr = [
     "easyocr",
     "pillow",
-]
-whisper = [
-    "yt-dlp",
-    "groq",
 ]
 
 [project.scripts]

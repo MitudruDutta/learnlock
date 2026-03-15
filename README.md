@@ -41,7 +41,7 @@ Feed it a YouTube video, article, PDF, or GitHub repo. It extracts concepts, bui
 ### From PyPI
 
 ```bash
-pip install learn-lock==0.1.6
+pip install learn-lock==0.1.7
 ```
 
 Requires Python 3.11 or higher.

@@ -40,20 +40,34 @@ def extract_youtube(url: str) -> dict:
 
 
 def _try_youtube_api(video_id: str, url: str) -> dict:
-    """Get transcript with timestamps via YouTube API."""
+    """Get transcript with timestamps via YouTube API.
+
+    Tries in order:
+    1. English transcript directly
+    2. Translate any available transcript to English
+    3. Return error to trigger Whisper fallback
+    """
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
 
         api = YouTubeTranscriptApi()
         transcript = None
 
+        # 1. Try English transcript directly
         try:
             transcript = api.fetch(video_id, languages=("en", "en-US", "en-GB"))
         except Exception:
+            pass
+
+        # 2. Try translating any available transcript to English
+        if not transcript:
             try:
                 transcript_list = api.list(video_id)
-                if transcript_list:
-                    transcript = transcript_list[0].fetch()
+                for t in transcript_list:
+                    if t.is_translatable:
+                        translated = t.translate("en")
+                        transcript = translated.fetch()
+                        break
             except Exception:
                 pass
 
@@ -186,8 +200,16 @@ def extract_frame_at_timestamp(url: str, timestamp: float) -> Optional[str]:
 
 
 def _try_whisper_fallback(video_id: str, url: str) -> dict:
-    """Fallback: download audio and transcribe with Groq Whisper."""
+    """Fallback: download audio and transcribe with Groq Whisper.
+
+    Handles arbitrarily long videos by:
+    1. Downloading audio
+    2. Re-encoding to 48kbps mono mp3 (small, ideal for speech)
+    3. Splitting into chunks if still over 24MB
+    4. Transcribing each chunk
+    """
     try:
+        import subprocess
         import tempfile
 
         import yt_dlp
@@ -199,18 +221,29 @@ def _try_whisper_fallback(video_id: str, url: str) -> dict:
     if not api_key:
         return {"error": "GROQ_API_KEY not set"}
 
+    # Verify ffmpeg is available
+    try:
+        import subprocess as _sp
+
+        _sp.run(["ffmpeg", "-version"], capture_output=True, timeout=10)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return {"error": "ffmpeg is required for Whisper transcription but not found"}
+
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = os.path.join(tmpdir, "audio")
-            info = _validate_downloadable_video(url)
 
-            # Get title first
+            # Extract info for title only — no duration or size limits
+            with yt_dlp.YoutubeDL(
+                {"quiet": True, "no_warnings": True, "noplaylist": True}
+            ) as ydl:
+                info = ydl.extract_info(url, download=False)
+
             title = info.get("title") or f"YouTube Video ({video_id})"
 
-            # Download audio
+            # Download full audio
             ydl_opts = {
                 "format": "m4a/bestaudio[ext=m4a]/bestaudio",
-                "max_filesize": config.MAX_REMOTE_DOWNLOAD_BYTES,
                 "noplaylist": True,
                 "outtmpl": audio_path + ".%(ext)s",
                 "quiet": True,
@@ -230,27 +263,91 @@ def _try_whisper_fallback(video_id: str, url: str) -> dict:
             if not audio_file or not os.path.exists(audio_file):
                 return {"error": "Audio download failed"}
 
-            # Check size (25MB limit)
-            file_size = os.path.getsize(audio_file)
-            if file_size > 25 * 1024 * 1024:
-                return {"error": f"Audio too large ({file_size // 1024 // 1024}MB > 25MB limit)"}
+            # Re-encode to compact mono mp3 (48kbps is fine for speech)
+            compact_path = os.path.join(tmpdir, "compact.mp3")
+            subprocess.run(
+                [
+                    "ffmpeg", "-i", audio_file,
+                    "-ac", "1",          # mono
+                    "-b:a", "48k",       # 48kbps — ~21MB per hour
+                    "-ar", "16000",      # 16kHz sample rate (Whisper native)
+                    compact_path,
+                ],
+                capture_output=True,
+                timeout=600,
+            )
 
-            # Transcribe with Groq Whisper
+            if not os.path.exists(compact_path):
+                return {"error": "Audio re-encoding failed"}
+
             client = Groq(api_key=api_key)
-            with open(audio_file, "rb") as f:
-                transcription = client.audio.transcriptions.create(
-                    file=(os.path.basename(audio_file), f),
-                    model="whisper-large-v3",
-                )
+            file_size = os.path.getsize(compact_path)
+
+            if file_size <= 24 * 1024 * 1024:
+                # Small enough — single transcription call
+                transcription = _transcribe_file(client, compact_path)
+            else:
+                # Split into chunks and transcribe each
+                chunks = _split_audio(compact_path, tmpdir)
+                if not chunks:
+                    return {"error": "Failed to split audio into chunks"}
+                parts = []
+                for chunk_path in chunks:
+                    parts.append(_transcribe_file(client, chunk_path))
+                transcription = " ".join(parts)
 
             return {
                 "title": title,
-                "content": transcription.text,
+                "content": transcription,
                 "url": url,
                 "source_type": "youtube",
             }
     except Exception as e:
         return {"error": f"Whisper transcription failed: {e}"}
+
+
+def _transcribe_file(client, audio_path: str) -> str:
+    """Transcribe a single audio file with Groq Whisper."""
+    with open(audio_path, "rb") as f:
+        result = client.audio.transcriptions.create(
+            file=(os.path.basename(audio_path), f),
+            model="whisper-large-v3",
+        )
+    return result.text
+
+
+def _split_audio(audio_path: str, output_dir: str) -> list[str]:
+    """Split audio into ~60-minute segments for the Whisper API.
+
+    At 48kbps mono, 60 minutes = ~21MB, well under the 25MB limit.
+    """
+    import subprocess
+
+    segment_seconds = 3600  # 60 minutes per chunk (~21MB at 48kbps)
+    pattern = os.path.join(output_dir, "chunk_%03d.mp3")
+
+    result = subprocess.run(
+        [
+            "ffmpeg", "-i", audio_path,
+            "-f", "segment",
+            "-segment_time", str(segment_seconds),
+            "-c", "copy",
+            "-reset_timestamps", "1",
+            pattern,
+        ],
+        capture_output=True,
+        timeout=300,
+    )
+
+    if result.returncode != 0:
+        return []
+
+    chunks = sorted(
+        os.path.join(output_dir, f)
+        for f in os.listdir(output_dir)
+        if f.startswith("chunk_")
+    )
+    return chunks
 
 
 def _get_video_title(video_id: str) -> Optional[str]:

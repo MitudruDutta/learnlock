@@ -1,5 +1,6 @@
 """Tests for content extraction tools."""
 
+from learnlock.tools import extract_content
 from learnlock.tools.youtube import _normalize_youtube_url, find_timestamp_for_text
 
 
@@ -82,3 +83,59 @@ class TestFindTimestampForText:
 
     def test_empty_segments(self):
         assert find_timestamp_for_text([], "anything") is None
+
+
+class TestExtractContentDispatch:
+    """Test that extract_content routes to the correct extractor."""
+
+    def test_unsupported_source(self):
+        result = extract_content("some random text")
+        assert "error" in result
+
+    def test_youtube_dispatch(self, monkeypatch):
+        monkeypatch.setattr(
+            "learnlock.tools.extract_youtube",
+            lambda url: {"source_type": "youtube", "url": url},
+        )
+        result = extract_content("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        assert result["source_type"] == "youtube"
+
+    def test_github_dispatch(self, monkeypatch):
+        monkeypatch.setattr(
+            "learnlock.tools.extract_github",
+            lambda url: {"source_type": "github", "url": url},
+        )
+        result = extract_content("https://github.com/user/repo")
+        assert result["source_type"] == "github"
+
+    def test_pdf_dispatch(self, monkeypatch):
+        monkeypatch.setattr(
+            "learnlock.tools.extract_pdf",
+            lambda url: {"source_type": "pdf", "url": url},
+        )
+        result = extract_content("https://example.com/paper.pdf")
+        assert result["source_type"] == "pdf"
+
+    def test_article_dispatch(self, monkeypatch):
+        monkeypatch.setattr(
+            "learnlock.tools.extract_article",
+            lambda url: {"source_type": "article", "url": url},
+        )
+        result = extract_content("https://example.com/blog-post")
+        assert result["source_type"] == "article"
+
+    def test_youtu_be_dispatch(self, monkeypatch):
+        monkeypatch.setattr(
+            "learnlock.tools.extract_youtube",
+            lambda url: {"source_type": "youtube", "url": url},
+        )
+        result = extract_content("https://youtu.be/dQw4w9WgXcQ")
+        assert result["source_type"] == "youtube"
+
+    def test_pdf_in_path_dispatch(self, monkeypatch):
+        monkeypatch.setattr(
+            "learnlock.tools.extract_pdf",
+            lambda url: {"source_type": "pdf", "url": url},
+        )
+        result = extract_content("https://arxiv.org/pdf/1234.5678")
+        assert result["source_type"] == "pdf"

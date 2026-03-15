@@ -18,7 +18,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from . import __version__, config, llm, scheduler, storage
-from .tools import extract_article, extract_github, extract_pdf, extract_youtube
+from .tools import extract_content
 
 # Suppress all warnings and litellm logging noise
 warnings.filterwarnings("ignore")
@@ -61,22 +61,22 @@ BANNER = """[bold cyan]
 
 HELP_TEXT = """
 [bold]Commands:[/bold]
-  [cyan]/add[/cyan] <source>     Add YouTube, article, GitHub, or PDF
-  [cyan]/study[/cyan]            Start adversarial study session
-  [cyan]/stats[/cyan]            Show your progress
-  [cyan]/list[/cyan]             List all concepts
-  [cyan]/due[/cyan]              Show what's due
-  [cyan]/skip[/cyan]   <name>    Skip a concept
-  [cyan]/unskip[/cyan] <name>    Restore skipped concept
-  [cyan]/claims[/cyan] <name>    View/edit/delete claims for a concept
-  [cyan]/delete[/cyan] <source>  Delete a source and its concepts
-  [cyan]/export[/cyan] [file]    Export all data to JSON
-  [cyan]/import[/cyan] <file>    Import and merge a JSON backup
-  [cyan]/visual[/cyan] [name]    Inspect the linked YouTube frame on demand
-  [cyan]/config[/cyan]           Show configuration
-  [cyan]/clear[/cyan]            Clear screen
-  [cyan]/help[/cyan]             Show this help
-  [cyan]/quit[/cyan]             Exit
+  [cyan]/add[/cyan] <source>       Add YouTube, article, GitHub, or PDF
+  [cyan]/study[/cyan]              Start adversarial study session
+  [cyan]/stats[/cyan]              Show your progress
+  [cyan]/list[/cyan]               List all concepts
+  [cyan]/due[/cyan]                Show what's due
+  [cyan]/skip[/cyan]   <name>      Skip a concept
+  [cyan]/unskip[/cyan] <name>      Restore skipped concept
+  [cyan]/claims[/cyan] <name>      View/edit/delete claims for a concept
+  [cyan]/delete[/cyan] <source>    Delete a source and its concepts
+  [cyan]/export[/cyan] [file]            Export all data to JSON
+  [cyan]/import[/cyan] <file>      Import and merge a JSON backup
+  [cyan]/visual[/cyan] [name]            Inspect the linked YouTube frame on demand
+  [cyan]/config[/cyan]             Show configuration
+  [cyan]/clear[/cyan]              Clear screen
+  [cyan]/help[/cyan]               Show this help
+  [cyan]/quit[/cyan]               Exit
 
 [bold]How It Works:[/bold]
   1. You explain a concept
@@ -419,15 +419,8 @@ def cmd_add(url: str) -> bool:
     ) as progress:
         task = progress.add_task("Fetching content...", total=4)
 
-        # Step 1: Fetch based on URL type
-        if _is_youtube(url):
-            result = extract_youtube(url)
-        elif _is_github(url):
-            result = extract_github(url)
-        elif _is_pdf(url):
-            result = extract_pdf(url)
-        else:
-            result = extract_article(url)
+        # Step 1: Fetch content via plugin dispatch
+        result = extract_content(url)
 
         if "error" in result:
             progress.stop()

@@ -8,6 +8,9 @@ from learnlock.duel import (
     BeliefState,
     Claim,
     DuelEngine,
+    _calc_claim_count,
+    _claims_similar,
+    _intersect_claims,
     _is_non_answer,
     _run_contradiction_detector,
     _sharpen_claims,
@@ -286,3 +289,82 @@ class TestDuelEngineWithCachedClaims:
         assert not llm_called
         assert len(engine.state.claims) == 2
         assert engine.state.claims[0].statement == "Cached claim 1"
+
+
+class TestCalcClaimCount:
+    def test_short_content(self):
+        min_c, max_c = _calc_claim_count(50)
+        assert min_c == 2
+        assert max_c >= 2
+
+    def test_medium_content(self):
+        min_c, max_c = _calc_claim_count(300)
+        assert min_c >= 2
+        assert max_c >= 3
+
+    def test_long_content(self):
+        min_c, max_c = _calc_claim_count(600)
+        assert max_c >= 4
+        assert max_c <= 6
+
+    def test_very_long_content(self):
+        min_c, max_c = _calc_claim_count(2000)
+        assert max_c == 6
+
+    def test_empty_content(self):
+        min_c, max_c = _calc_claim_count(0)
+        assert min_c == 2
+
+
+class TestClaimsSimilar:
+    def test_identical(self):
+        assert _claims_similar("Widgets encapsulate UI state", "Widgets encapsulate UI state")
+
+    def test_similar_overlap(self):
+        assert _claims_similar(
+            "A backend server mediates between clients and databases",
+            "A server mediates between clients and data stores",
+        )
+
+    def test_no_overlap(self):
+        assert not _claims_similar(
+            "Python uses garbage collection",
+            "HTTP is a stateless protocol",
+        )
+
+    def test_partial_overlap_below_threshold(self):
+        assert not _claims_similar(
+            "Widgets render components on screen",
+            "Databases store persistent data on disk",
+        )
+
+    def test_empty_after_stop_words(self):
+        assert not _claims_similar("the is a an", "to of in for")
+
+
+class TestIntersectClaims:
+    def test_keeps_matching(self):
+        primary = [
+            Claim("Widgets encapsulate UI state", "definition", 0),
+            Claim("Widgets respond to user events", "mechanism", 1),
+        ]
+        secondary = [
+            Claim("UI components encapsulate state in widgets", "definition", 0),
+            Claim("HTTP is stateless", "definition", 1),
+        ]
+        result = _intersect_claims(primary, secondary)
+        assert len(result) == 1
+        assert result[0].statement == "Widgets encapsulate UI state"
+
+    def test_empty_when_no_overlap(self):
+        primary = [Claim("Python uses dynamic typing", "mechanism", 0)]
+        secondary = [Claim("Rust enforces memory safety", "mechanism", 0)]
+        assert _intersect_claims(primary, secondary) == []
+
+    def test_empty_secondary(self):
+        primary = [Claim("Some claim", "definition", 0)]
+        assert _intersect_claims(primary, []) == []
+
+    def test_empty_primary(self):
+        secondary = [Claim("Some claim", "definition", 0)]
+        assert _intersect_claims([], secondary) == []
