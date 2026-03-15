@@ -35,7 +35,7 @@ export default function CommandsPage() {
           CLI Commands
         </h1>
         <p className="text-base sm:text-lg md:text-xl text-muted-foreground">
-          Complete reference for the v0.1.6 command surface.
+          Complete reference for the v0.1.7 command surface.
         </p>
       </div>
 
