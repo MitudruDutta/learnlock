@@ -84,7 +84,7 @@ class TestSanitizeForPrompt:
 class TestCalcConceptCount:
     def test_short_content(self):
         min_c, max_c = _calc_concept_count(500)
-        assert min_c >= 3
+        assert min_c >= 5
         assert max_c >= min_c
 
     def test_long_content(self):
@@ -93,7 +93,7 @@ class TestCalcConceptCount:
 
     def test_empty_content(self):
         min_c, max_c = _calc_concept_count(0)
-        assert min_c >= 1  # clamped by max(3, ...)
+        assert min_c >= 5  # floor is 5
         assert max_c >= min_c
 
 

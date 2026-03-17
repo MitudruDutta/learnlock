@@ -473,33 +473,46 @@ BELIEF: [one sentence - their mental model]"""
 def _run_contradiction_detector(belief: str, claims: list[Claim], turn: int) -> list[BeliefError]:
     """Check belief against claims. Errors MUST reference claims."""
 
-    if not belief or not claims:
+    if not claims:
         return []
 
-    harshness = {
-        1: "Only CLEAR violations.",
-        2: "Violations and omissions.",
-        3: "All violations.",
-    }
+    # No belief extracted = student gave nothing useful
+    if not belief:
+        return [
+            BeliefError(
+                "missing_mechanism",
+                "No substantive answer provided",
+                2,
+                claims[0].statement,
+                0,
+                confidence=1.0,
+            )
+        ]
+
     claims_str = "\n".join(f"{c.index + 1}. [{c.claim_type}] {c.statement}" for c in claims)
 
-    prompt = f"""Check belief against claims.
+    prompt = f"""You are a strict examiner. Check if the student's belief covers ALL claims.
 
 BELIEF: {belief}
 
 CLAIMS:
 {claims_str}
 
-{harshness.get(turn, harshness[3])}
+RULES:
+- A claim is ONLY satisfied if the belief EXPLICITLY addresses it with correct detail.
+- Vague, generic, or surface-level answers count as missing_mechanism.
+- If the belief does not mention a claim AT ALL, that is missing_mechanism (severity 2).
+- If the belief contradicts a claim, that is wrong_mechanism (severity 3).
+- Be strict: "it does stuff" does NOT satisfy "X uses algorithm Y to achieve Z".
 
-For EACH violation, output:
+For EACH violation, output one line:
 CLAIM_NUM|ERROR_TYPE|DESCRIPTION|SEVERITY|CONFIDENCE
 
 Types: wrong_mechanism, missing_mechanism, boundary_error, conflation, superficial
 Severity: 1=minor, 2=significant, 3=critical
-Confidence: 0.0 to 1.0 (how sure you are this is a real error)
+Confidence: 0.0 to 1.0
 
-If no violations: NONE"""
+If EVERY claim is explicitly and correctly addressed: NONE"""
 
     resp = _duel_llm(prompt).strip()
     if resp.upper() in ("NONE", "N/A", ""):
@@ -696,7 +709,11 @@ class DuelEngine:
         self.turn += 1
         trigger = self.state.attack_history[-1] if self.state.attack_history else "initial"
 
-        belief_result = _run_belief_model(self.concept, user_input, self.state)
+        try:
+            belief_result = _run_belief_model(self.concept, user_input, self.state)
+        except Exception:
+            # If belief extraction fails, use raw input as belief
+            belief_result = {"belief": user_input, "is_non_answer": False}
 
         if belief_result["belief"] and belief_result["belief"] != self.state.belief:
             self.state.belief = belief_result["belief"]
@@ -723,8 +740,22 @@ class DuelEngine:
             self.state.attack_history.append(attack)
             return {"type": "attack", "message": attack}
 
-        # Check against claims
-        errors = _run_contradiction_detector(self.state.belief, self.state.claims, self.turn)
+        # Check against claims — if detector fails, assume errors exist
+        try:
+            errors = _run_contradiction_detector(
+                self.state.belief, self.state.claims, self.turn
+            )
+        except Exception:
+            errors = [
+                BeliefError(
+                    "evaluation_failed",
+                    "Could not verify answer",
+                    2,
+                    self.state.claims[0].statement if self.state.claims else "",
+                    0,
+                    confidence=1.0,
+                )
+            ]
         self.state.errors = errors
         actionable = actionable_errors(errors)
 

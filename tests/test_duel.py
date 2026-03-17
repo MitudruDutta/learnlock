@@ -157,8 +157,10 @@ class TestContradictionDetector:
         assert errors[0].severity == 3
         assert errors[0].description == "Explains the wrong step|skips the real mechanism"
 
-    def test_empty_belief_returns_empty(self):
-        assert _run_contradiction_detector("", [Claim("x", "y", 0)], 1) == []
+    def test_empty_belief_returns_error(self):
+        errors = _run_contradiction_detector("", [Claim("x", "y", 0)], 1)
+        assert len(errors) == 1
+        assert errors[0].type == "missing_mechanism"
 
     def test_empty_claims_returns_empty(self):
         assert _run_contradiction_detector("some belief", [], 1) == []

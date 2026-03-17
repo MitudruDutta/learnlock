@@ -244,9 +244,9 @@ def parse_json_response(response: str) -> dict | list:
 
 def _calc_concept_count(content_len: int) -> tuple[int, int]:
     """Calculate min/max concepts based on content length."""
-    # ~1 concept per 500 chars, clamped to 3-20
-    base = max(3, min(20, content_len // 500))
-    return max(3, base - 2), min(20, base + 2)
+    # ~1 concept per 400 chars, floor of 5 so short videos still get enough
+    base = max(5, min(20, content_len // 400))
+    return max(5, base - 2), min(20, base + 2)
 
 
 def _normalize_excerpt(text: str) -> str:
