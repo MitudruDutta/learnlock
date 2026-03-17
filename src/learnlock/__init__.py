@@ -3,4 +3,4 @@ try:
 
     __version__ = version("learn-lock")
 except Exception:
-    __version__ = "0.1.7"
+    __version__ = "0.1.8"
