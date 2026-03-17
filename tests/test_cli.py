@@ -140,7 +140,7 @@ class TestPhase3Commands:
         second_id = storage.add_source("https://example.com/2", "Shared Title", "article", "two")
         stub = StubConsole()
         monkeypatch.setattr(cli, "console", stub)
-        monkeypatch.setattr(cli.Prompt, "ask", lambda *args, **kwargs: "yes")
+        monkeypatch.setattr("builtins.input", lambda *args, **kwargs: "yes")
 
         assert cli.cmd_delete(str(second_id)) is True
         assert storage.get_source(second_id) is None
@@ -149,6 +149,7 @@ class TestPhase3Commands:
     def test_claims_generates_cache_before_first_duel(self, seeded_db, monkeypatch):
         stub = StubConsole(inputs=[""])
         monkeypatch.setattr(cli, "console", stub)
+        monkeypatch.setattr("builtins.input", lambda *a, **kw: "")
         monkeypatch.setattr(cli, "_check_api_keys", lambda **kwargs: True)
         monkeypatch.setattr(cli, "_spinner", lambda message: nullcontext())
 

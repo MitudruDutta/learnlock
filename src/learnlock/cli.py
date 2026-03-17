@@ -2,6 +2,7 @@
 
 import logging
 import os
+import readline  # noqa: F401 — enables arrow keys / history in input()
 import select
 import sys
 import warnings
@@ -14,7 +15,6 @@ from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.prompt import Prompt
 from rich.table import Table
 
 from . import __version__, config, llm, scheduler, storage
@@ -49,6 +49,26 @@ def _flush_stdin():
                 pass
 
 
+def _input(prompt: str = "") -> str:
+    """input() with terminal mode restoration.
+
+    Rich's spinners and panels can corrupt the terminal mode, breaking
+    arrow keys and backspace. This restores canonical mode before reading.
+    """
+    if sys.platform != "win32":
+        try:
+            import termios
+
+            fd = sys.stdin.fileno()
+            attrs = termios.tcgetattr(fd)
+            # Restore ICANON (line editing) and ECHO (show typed chars)
+            attrs[3] |= termios.ECHO | termios.ICANON
+            termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        except Exception:
+            pass
+    return input(prompt)
+
+
 # ============ CONSTANTS ============
 BANNER = """[bold cyan]
 ██╗     ███████╗ █████╗ ██████╗ ███╗   ██╗██╗      ██████╗  ██████╗██╗  ██╗
@@ -61,22 +81,23 @@ BANNER = """[bold cyan]
 
 HELP_TEXT = """
 [bold]Commands:[/bold]
-  [cyan]/add[/cyan] <source>       Add YouTube, article, GitHub, or PDF
-  [cyan]/study[/cyan]              Start adversarial study session
-  [cyan]/stats[/cyan]              Show your progress
-  [cyan]/list[/cyan]               List all concepts
-  [cyan]/due[/cyan]                Show what's due
-  [cyan]/skip[/cyan]   <name>      Skip a concept
-  [cyan]/unskip[/cyan] <name>      Restore skipped concept
-  [cyan]/claims[/cyan] <name>      View/edit/delete claims for a concept
-  [cyan]/delete[/cyan] <source>    Delete a source and its concepts
-  [cyan]/export[/cyan] [file]            Export all data to JSON
-  [cyan]/import[/cyan] <file>      Import and merge a JSON backup
-  [cyan]/visual[/cyan] [name]            Inspect the linked YouTube frame on demand
-  [cyan]/config[/cyan]             Show configuration
-  [cyan]/clear[/cyan]              Clear screen
-  [cyan]/help[/cyan]               Show this help
-  [cyan]/quit[/cyan]               Exit
+  [cyan]/add[/cyan] <source>              Add YouTube, article, GitHub, or PDF
+  [cyan]/study[/cyan]                     Start adversarial study session
+  [cyan]/stats[/cyan]                     Show your progress
+  [cyan]/list[/cyan]                      List all concepts
+  [cyan]/due[/cyan]                       Show what's due
+  [cyan]/skip[/cyan]   <name>             Skip a concept
+  [cyan]/unskip[/cyan] <name>             Restore skipped concept
+  [cyan]/claims[/cyan] <name>             View/edit/delete claims for a concept
+  [cyan]/delete[/cyan] <source>           Delete a source and its concepts
+  [cyan]/export[/cyan] [file]                   Export all data to JSON
+  [cyan]/import[/cyan] <file>             Import and merge a JSON backup
+  [cyan]/visual[/cyan] [name]                   Inspect the linked YouTube frame on demand
+  [cyan]/key[/cyan]    <provider> <key>   Set API key (groq or gemini)
+  [cyan]/config[/cyan]                    Show configuration
+  [cyan]/clear[/cyan]                     Clear screen
+  [cyan]/help[/cyan]                      Show this help
+  [cyan]/quit[/cyan]                      Exit
 
 [bold]How It Works:[/bold]
   1. You explain a concept
@@ -191,47 +212,21 @@ def _check_api_keys(*, require_groq: bool = False, require_any: bool = False) ->
 
 
 def _print_api_key_help():
-    """Show how to set API keys in the terminal."""
+    """Show how to set API keys."""
     console.print("[bold yellow]API keys not set.[/bold yellow]")
     console.print()
-    console.print(
-        "You need at least one API key. "
-        "Run these in your terminal before launching learnlock:"
-    )
+    console.print("Set keys directly in learnlock (saved permanently):")
     console.print()
-    if sys.platform == "win32":
-        console.print("[bold]Windows (PowerShell):[/bold]")
-        console.print(
-            '  [white]$env:GROQ_API_KEY="your_groq_key_here"[/white]'
-        )
-        console.print(
-            '  [white]$env:GEMINI_API_KEY="your_gemini_key_here"[/white]'
-        )
-        console.print()
-        console.print("[bold]Windows (CMD — permanent):[/bold]")
-        console.print(
-            '  [white]setx GROQ_API_KEY "your_groq_key_here"[/white]'
-        )
-        console.print(
-            '  [white]setx GEMINI_API_KEY "your_gemini_key_here"[/white]'
-        )
-    else:
-        console.print("[bold]Linux / macOS:[/bold]")
-        console.print(
-            '  [white]export GROQ_API_KEY="your_groq_key_here"[/white]'
-        )
-        console.print(
-            '  [white]export GEMINI_API_KEY="your_gemini_key_here"[/white]'
-        )
-        console.print()
-        console.print(
-            "[dim]Add these lines to ~/.bashrc or ~/.zshrc "
-            "to make them permanent.[/dim]"
-        )
+    console.print(
+        "  [white]/key groq YOUR_GROQ_KEY[/white]"
+    )
+    console.print(
+        "  [white]/key gemini YOUR_GEMINI_KEY[/white]"
+    )
     console.print()
     console.print("[bold]Get free keys:[/bold]")
     console.print(
-        "  Groq  : [cyan]https://console.groq.com[/cyan]"
+        "  Groq   : [cyan]https://console.groq.com/keys[/cyan]"
     )
     console.print(
         "  Gemini : [cyan]https://aistudio.google.com/apikey[/cyan]"
@@ -501,9 +496,12 @@ def cmd_study() -> bool:
     studied = 0
 
     console.print()
-    console.print(f"[bold cyan]DUEL SESSION[/bold cyan] - {initial_due} concepts")
-    console.print("[dim]I will find what you don't know. Type 'skip' or 'q' anytime.[/dim]")
-    console.print("[dim]Double Enter to send your answer.[/dim]")
+    console.rule("[bold cyan]DUEL SESSION[/bold cyan]", style="cyan")
+    console.print(
+        f"[dim]{initial_due} concepts due  |  'skip' to skip  |  "
+        f"'q' to quit  |  double Enter to send[/dim]",
+        justify="center",
+    )
 
     while due:
         studied += 1
@@ -518,7 +516,10 @@ def cmd_study() -> bool:
 
         # Header
         console.print()
-        console.print(f"[bold]--- {studied}/{initial_due}: {due['name']} ---[/bold]")
+        console.rule(style="dim")
+        console.print(
+            f"[bold]{studied}/{initial_due}[/bold]  [cyan]{due['name']}[/cyan]"
+        )
         console.print(f"[dim]{due['source_title']}[/dim]")
 
         # Show memory from last duel (if exists)
@@ -549,7 +550,8 @@ def cmd_study() -> bool:
             lines = []
             try:
                 while True:
-                    line = console.input("[bold]> [/bold]" if not lines else "[bold]  [/bold]")
+                    prompt = "\033[1m> \033[0m" if not lines else "\033[1m  \033[0m"
+                    line = _input(prompt)
                     if not line and lines:
                         break
                     if line:
@@ -647,8 +649,9 @@ def cmd_study() -> bool:
             remaining = len(scheduler.get_all_due())
             console.print()
             try:
-                prompt = f"[dim]({remaining} more) Enter to continue, 'q' to quit: [/dim]"
-                cont = console.input(prompt).strip()
+                cont = _input(
+                    f"\033[2m({remaining} more) Enter to continue, 'q' to quit: \033[0m"
+                ).strip()
                 if cont.lower() in ("q", "quit", "n"):
                     console.print("[dim]Session ended.[/dim]")
                     return True
@@ -860,9 +863,7 @@ def cmd_delete(name: str) -> bool:
         f"[dim]({len(concepts)} concepts)?[/dim]"
     )
     try:
-        confirm = Prompt.ask(
-            "[dim]Type 'yes' to confirm[/dim]", console=console
-        )
+        confirm = _input("\033[2mType 'yes' to confirm: \033[0m")
     except (EOFError, KeyboardInterrupt):
         console.print("[dim]Cancelled.[/dim]")
         return True
@@ -924,7 +925,7 @@ def cmd_claims(name: str) -> bool:
 
     while True:
         try:
-            action = console.input("[bold]claims> [/bold]").strip()
+            action = _input("\033[1mclaims> \033[0m").strip()
         except (EOFError, KeyboardInterrupt):
             break
 
@@ -1148,6 +1149,78 @@ def cmd_config() -> bool:
     return True
 
 
+def cmd_key(args: str) -> bool:
+    """Set an API key. Usage: /key groq <key> or /key gemini <key>"""
+    parts = args.strip().split(maxsplit=1)
+    if len(parts) < 2:
+        console.print("[bold]Usage:[/bold]")
+        console.print("  [white]/key groq YOUR_GROQ_KEY[/white]")
+        console.print("  [white]/key gemini YOUR_GEMINI_KEY[/white]")
+        console.print()
+        console.print("[bold]Get free keys:[/bold]")
+        console.print(
+            "  Groq   : [cyan]https://console.groq.com/keys[/cyan]"
+        )
+        console.print(
+            "  Gemini : [cyan]https://aistudio.google.com/apikey[/cyan]"
+        )
+        return True
+
+    provider = parts[0].lower()
+    key_value = parts[1].strip().strip("\"'")
+
+    key_map = {
+        "groq": "GROQ_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+    }
+
+    if provider not in key_map:
+        console.print(
+            f"[red]Unknown provider '{provider}'. Use 'groq' or 'gemini'.[/red]"
+        )
+        return True
+
+    env_name = key_map[provider]
+    env_path = config.DATA_DIR / ".env"
+
+    # Create ~/.learnlock/ if needed
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Read existing .env content
+    existing_lines = []
+    if env_path.exists():
+        existing_lines = env_path.read_text().splitlines()
+
+    # Replace or append the key
+    found = False
+    new_lines = []
+    for line in existing_lines:
+        if line.strip().startswith(f"{env_name}="):
+            new_lines.append(f"{env_name}={key_value}")
+            found = True
+        else:
+            new_lines.append(line)
+    if not found:
+        new_lines.append(f"{env_name}={key_value}")
+
+    env_path.write_text("\n".join(new_lines) + "\n")
+
+    # Set restrictive permissions (owner read/write only)
+    try:
+        env_path.chmod(0o600)
+    except OSError:
+        pass
+
+    # Activate immediately in current session
+    os.environ[env_name] = key_value
+
+    masked = key_value[:6] + "..." + key_value[-4:]
+    console.print(
+        f"[green]Saved {env_name}={masked} to {env_path}[/green]"
+    )
+    return True
+
+
 def cmd_help() -> bool:
     """Show help."""
     console.print(HELP_TEXT)
@@ -1177,6 +1250,7 @@ COMMANDS: dict[str, Callable] = {
     "export": lambda args: cmd_export(args),
     "import": lambda args: cmd_import(args),
     "visual": lambda args: cmd_visual(args),
+    "key": lambda args: cmd_key(args),
     "config": lambda args: cmd_config(),
     "help": lambda args: cmd_help(),
     "h": lambda args: cmd_help(),
@@ -1244,7 +1318,7 @@ def interactive_mode():
 
     while True:
         try:
-            user_input = Prompt.ask("[bold cyan]learnlock[/bold cyan]", console=console)
+            user_input = _input("\033[1;36mlearnlock\033[0m: ")
             console.print()
 
             if not handle_input(user_input):
