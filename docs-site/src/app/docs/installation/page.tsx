@@ -9,12 +9,12 @@ export default function InstallationPage() {
     <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-3 sm:mb-4">Installation</h1>
-        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">Get LearnLock v0.1.7 running in under 5 minutes.</p>
+        <p className="text-base sm:text-lg md:text-xl text-muted-foreground">Get LearnLock v0.1.8 running in under 5 minutes.</p>
       </div>
 
       <section className="space-y-3 sm:space-y-4">
         <h2 className="text-xl sm:text-2xl font-semibold">pip (Recommended)</h2>
-        <CodeBlock code="pip install learn-lock==0.1.7" />
+        <CodeBlock code="pip install learn-lock==0.1.8" />
       </section>
 
       <section className="space-y-3 sm:space-y-4">

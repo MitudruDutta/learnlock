@@ -46,7 +46,7 @@ export default function DocsPage() {
       </div>
 
       <div className="rounded-xl border border-[#3f3f46] bg-[#1f1f23] p-4 sm:p-5">
-        <p className="text-xs uppercase tracking-[0.2em] text-[#71717a]">v0.1.7</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-[#71717a]">v0.1.8</p>
         <h2 className="mt-2 text-lg sm:text-xl font-semibold text-white">
           Current release docs match the shipped CLI.
         </h2>
